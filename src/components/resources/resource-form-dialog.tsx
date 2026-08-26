@@ -29,7 +29,20 @@ const emptyForm = {
   category: CATEGORY_VALUES[0],
   tags: "",
   isFeatured: false,
+  startsAt: "",
+  deadlineAt: "",
 };
+
+function toDateTimeLocalValue(iso: string | null) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function toIsoDateTime(value: string) {
+  return value ? new Date(value).toISOString() : null;
+}
 
 export function ResourceFormDialog({
   open,
@@ -49,6 +62,8 @@ export function ResourceFormDialog({
           category: resource.category as (typeof CATEGORY_VALUES)[number],
           tags: resource.tags.join("，"),
           isFeatured: resource.isFeatured,
+          startsAt: toDateTimeLocalValue(resource.startsAt),
+          deadlineAt: toDateTimeLocalValue(resource.deadlineAt),
         }
       : emptyForm,
   );
@@ -66,6 +81,8 @@ export function ResourceFormDialog({
       category: form.category,
       tags,
       isFeatured: form.isFeatured,
+      startsAt: toIsoDateTime(form.startsAt),
+      deadlineAt: toIsoDateTime(form.deadlineAt),
     });
   }
 
@@ -113,6 +130,45 @@ export function ResourceFormDialog({
             aria-invalid={Boolean(fieldErrors?.url)}
           />
         </Field>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            id="resource-starts-at"
+            label="开始时间（可选）"
+            error={fieldErrors?.startsAt}
+          >
+            <Input
+              id="resource-starts-at"
+              type="datetime-local"
+              step={60}
+              value={form.startsAt}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, startsAt: event.target.value }))
+              }
+              aria-invalid={Boolean(fieldErrors?.startsAt)}
+            />
+          </Field>
+
+          <Field
+            id="resource-deadline-at"
+            label="截止时间（可选）"
+            error={fieldErrors?.deadlineAt}
+          >
+            <Input
+              id="resource-deadline-at"
+              type="datetime-local"
+              step={60}
+              value={form.deadlineAt}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, deadlineAt: event.target.value }))
+              }
+              aria-invalid={Boolean(fieldErrors?.deadlineAt)}
+            />
+          </Field>
+        </div>
+        <p className="text-muted-foreground -mt-2 text-xs leading-5">
+          留空即不展示时间；输入按当前设备时区保存，站内统一按北京时间展示。
+        </p>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field id="resource-category" label="分类" error={fieldErrors?.category}>

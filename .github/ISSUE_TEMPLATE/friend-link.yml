@@ -1,0 +1,60 @@
+name: 提交友链
+description: 申请将你的站点加入江财OFFER友链页
+title: "[友链申请] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢申请加入江财OFFER友链。请完整填写以下信息，我们会在审核后更新友链页。
+
+  - type: input
+    id: name
+    attributes:
+      label: 站点名称
+      placeholder: 例如：江财OFFER
+    validations:
+      required: true
+
+  - type: input
+    id: url
+    attributes:
+      label: 站点地址
+      description: 请填写可以公开访问的完整 HTTPS 地址。
+      placeholder: https://example.com/
+    validations:
+      required: true
+
+  - type: input
+    id: avatar
+    attributes:
+      label: 头像或站点图标
+      description: 请填写可公开访问的图片直链。
+      placeholder: https://example.com/avatar.png
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 站点简介
+      description: 建议控制在 30 个字以内。
+      placeholder: 用一句话介绍你的站点
+    validations:
+      required: true
+
+  - type: input
+    id: contact
+    attributes:
+      label: 联系方式
+      description: 可选，仅用于审核时联系。
+      placeholder: GitHub 用户名、邮箱或其他联系方式
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交确认
+      options:
+        - label: 我确认站点可以正常访问，且内容适合公开展示。
+          required: true
+        - label: 我同意江财OFFER根据页面展示需要调整简介文字。
+          required: true

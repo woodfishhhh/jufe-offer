@@ -50,7 +50,10 @@ export function SiteHeader() {
         <HeaderChip className="site-header__chip--brand">
           <Link href="/" className="site-header__brand" aria-label={`${site.name}首页`}>
             <SiteLogoMark className="size-7 border-black/10 sm:size-8" />
-            <span className="site-header__brand-label">JUFE</span>
+            <span className="site-header__brand-label" aria-hidden="true">
+              <span>JUFE</span>
+              <span>OFFER</span>
+            </span>
           </Link>
         </HeaderChip>
 

@@ -4,7 +4,6 @@ import { FlowingWaves } from "@/components/flowing-waves";
 import { DeferredCommunityPanel } from "@/components/home/deferred-community-panel";
 import { EmblemCanvas } from "@/components/home/emblem-canvas";
 import { HomeDeck } from "@/components/home/home-deck";
-import { ResourcePreviewCard } from "@/components/home/resource-preview-card";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { HOME_CATEGORY_PREVIEWS } from "@/data/categories";
 import { site } from "@/data/site";
 import { prisma } from "@/lib/prisma";
-import { toResourceDto } from "@/lib/resources";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -22,55 +20,21 @@ export const metadata = {
   description: site.tagline,
 };
 
-const HIGHLIGHT_LIMIT = 6;
-
-async function loadHomeData() {
+async function loadCategoryCounts() {
   try {
-    const [featured, categoryCounts] = await Promise.all([
-      prisma.resource.findMany({
-        where: { isFeatured: true },
-        orderBy: { updatedAt: "desc" },
-        take: HIGHLIGHT_LIMIT,
-      }),
-      prisma.resource.groupBy({ by: ["category"], _count: { _all: true } }),
-    ]);
+    const categoryCounts = await prisma.resource.groupBy({
+      by: ["category"],
+      _count: { _all: true },
+    });
 
-    const highlights =
-      featured.length > 0
-        ? featured
-        : await prisma.resource.findMany({
-            orderBy: { updatedAt: "desc" },
-            take: HIGHLIGHT_LIMIT,
-          });
-
-    return {
-      highlights: highlights.map(toResourceDto),
-      showFeaturedBadge: featured.length > 0,
-      countByCategory: new Map(
-        categoryCounts.map((item) => [item.category, item._count._all]),
-      ),
-    };
+    return new Map(categoryCounts.map((item) => [item.category, item._count._all]));
   } catch {
-    return {
-      highlights: [],
-      showFeaturedBadge: false,
-      countByCategory: new Map<string, number>(),
-    };
+    return new Map<string, number>();
   }
 }
 
-const highlightGridClasses = [
-  "lg:col-span-7",
-  "lg:col-span-5 lg:translate-y-2",
-  "lg:col-span-3",
-  "lg:col-span-3",
-  "lg:col-span-3",
-  "lg:col-span-3",
-];
-
 export default async function HomePage() {
-  const { highlights, showFeaturedBadge, countByCategory } = await loadHomeData();
-  const highlightTitle = showFeaturedBadge ? "精选资源(持续更新 )" : "最近收录";
+  const countByCategory = await loadCategoryCounts();
 
   return (
     <HomeDeck className="bg-background text-foreground">
@@ -138,11 +102,13 @@ export default async function HomePage() {
         </div>
       </section>
 
+      <DeferredCommunityPanel />
+
       <section className="border-border relative overflow-hidden border-b lg:h-full lg:min-h-0">
         <div className="mx-auto flex h-full max-w-[1280px] flex-col justify-center px-5 py-8 sm:px-8 sm:py-12 lg:py-14">
           <ScrollReveal className="flex flex-wrap items-end justify-between gap-3 sm:gap-5">
             <div className="flex items-end gap-5">
-              <span className="text-muted-foreground pb-1 font-mono text-xs">02</span>
+              <span className="text-muted-foreground pb-1 font-mono text-xs">03</span>
               <div>
                 <p className="text-muted-foreground mb-3 text-xs tracking-[0.18em] uppercase">
                   Resource index
@@ -211,50 +177,6 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
-      {highlights.length > 0 ? (
-        <section className="border-border relative overflow-hidden border-b pt-20 lg:h-full lg:min-h-0">
-          <div className="mx-auto flex h-full max-w-[1280px] flex-col px-5 py-6 sm:px-8 sm:py-8 lg:py-8">
-            <ScrollReveal className="flex shrink-0 flex-nowrap items-end justify-between gap-3 sm:gap-6">
-              <div className="flex min-w-0 items-end gap-3 sm:gap-5">
-                <span className="text-muted-foreground pb-1 font-mono text-xs">03</span>
-                <h2 className="font-display text-3xl font-bold tracking-[-0.045em] sm:text-5xl lg:text-6xl">
-                  {highlightTitle}
-                </h2>
-              </div>
-              <Link
-                href="/resources"
-                className={cn(
-                  buttonVariants({ variant: "outline", size: "lg" }),
-                  "h-10 shrink-0 px-4 sm:h-12 sm:px-6",
-                )}
-              >
-                全部资源
-                <ArrowUpRight />
-              </Link>
-            </ScrollReveal>
-
-            <div className="mt-5 grid min-h-0 flex-1 grid-rows-6 gap-2.5 sm:mt-6 sm:grid-cols-3 sm:grid-rows-2 sm:gap-4 lg:mt-8 lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-5">
-              {highlights.map((resource, index) => (
-                <ScrollReveal
-                  key={resource.id}
-                  className={cn("h-full min-h-0 min-w-0", highlightGridClasses[index])}
-                  delay={Math.min(index * 55, 220)}
-                >
-                  <ResourcePreviewCard
-                    resource={resource}
-                    showFeaturedBadge={showFeaturedBadge}
-                    prominent={index < 2}
-                    compact
-                  />
-                </ScrollReveal>
-              ))}
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      <DeferredCommunityPanel />
     </HomeDeck>
   );
 }

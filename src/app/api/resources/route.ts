@@ -83,6 +83,8 @@ export async function POST(request: NextRequest) {
         category: parsed.data.category,
         tags: stringifyTags(parsed.data.tags),
         isFeatured: parsed.data.isFeatured,
+        startsAt: parsed.data.startsAt ? new Date(parsed.data.startsAt) : null,
+        deadlineAt: parsed.data.deadlineAt ? new Date(parsed.data.deadlineAt) : null,
       },
     });
 

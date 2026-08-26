@@ -33,7 +33,7 @@ function CommunityLitePanel({
       <FlowingWaves className="text-white opacity-18" />
       <div className="community-lite">
         <div className="community-stage__index">
-          <span>04</span>
+          <span>02</span>
           <span className="community-stage__index-line" />
           <span>Community</span>
         </div>

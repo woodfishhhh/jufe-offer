@@ -89,7 +89,7 @@ export function QqGroupPanel() {
     <>
       <div className="community-pass__grid" aria-hidden="true" />
       <span className="community-pass__number" aria-hidden="true">
-        04
+        02
       </span>
       <div className="community-pass__content">
         <div className="community-pass__brand">
@@ -146,7 +146,7 @@ export function QqGroupPanel() {
       <div className="community-stage__inner">
         <ScrollReveal className="community-stage__header">
           <div className="community-stage__index">
-            <span>04</span>
+            <span>02</span>
             <span className="community-stage__index-line" />
             <span>Community</span>
           </div>
@@ -197,7 +197,7 @@ export function QqGroupPanel() {
                     <div className="community-qr-card__header">
                       <QrCode />
                       <span>QQ GROUP</span>
-                      <span>SCAN / 04</span>
+                      <span>SCAN / 02</span>
                     </div>
                     <div className="community-qr-card__image">
                       <ResilientImage
@@ -222,7 +222,7 @@ export function QqGroupPanel() {
                     <div className="community-qr-card__header">
                       <QrCode />
                       <span>QQ GROUP</span>
-                      <span>SCAN / 04</span>
+                      <span>SCAN / 02</span>
                     </div>
                     <div className="community-qr-card__image">
                       <ResilientImage

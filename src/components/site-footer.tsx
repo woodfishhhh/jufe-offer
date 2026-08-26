@@ -1,7 +1,14 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { site } from "@/data/site";
 
 export function SiteFooter() {
+  const pathname = usePathname();
+
+  if (pathname === "/resources") return null;
+
   return (
     <footer className="bg-foreground text-background mt-auto border-t border-white/12">
       <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-5 py-10 sm:px-8 md:flex-row md:items-end md:justify-between">

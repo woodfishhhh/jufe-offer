@@ -100,6 +100,8 @@ function resourceData(candidate: Candidate) {
     category: CANDIDATE_RESOURCE_CATEGORY[candidate.category as CandidateCategoryValue],
     tags: candidate.tags,
     isFeatured: false,
+    startsAt: null,
+    deadlineAt: candidate.deadline,
   };
 }
 

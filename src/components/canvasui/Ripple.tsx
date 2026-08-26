@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import {
   useEffect,
   useRef,
@@ -528,6 +529,7 @@ export function Ripple({
   contentStyle,
   ...options
 }: RippleProps) {
+  const pathname = usePathname();
   const sourceRef = useRef<HTMLCanvasElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const outputRef = useRef<HTMLCanvasElement>(null);
@@ -541,7 +543,12 @@ export function Ripple({
     supportsHtmlInCanvas,
     () => false,
   );
-  const native = supported && effectsAllowed && !failed;
+  const native =
+    pathname !== "/friends" &&
+    pathname !== "/resources" &&
+    supported &&
+    effectsAllowed &&
+    !failed;
 
   useEffect(() => {
     const update = () => setEffectsAllowed(!shouldAvoidFullPageCanvas());

@@ -37,6 +37,25 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return zodErrorResponse(parsed.error);
     }
 
+    const startsAt =
+      parsed.data.startsAt !== undefined
+        ? parsed.data.startsAt
+          ? new Date(parsed.data.startsAt)
+          : null
+        : existing.startsAt;
+    const deadlineAt =
+      parsed.data.deadlineAt !== undefined
+        ? parsed.data.deadlineAt
+          ? new Date(parsed.data.deadlineAt)
+          : null
+        : existing.deadlineAt;
+
+    if (startsAt && deadlineAt && deadlineAt.getTime() < startsAt.getTime()) {
+      return jsonError("提交内容未通过校验。", 400, {
+        deadlineAt: "截止时间不能早于开始时间",
+      });
+    }
+
     const updated = await prisma.resource.update({
       where: { id },
       data: {
@@ -52,6 +71,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         ...(parsed.data.isFeatured !== undefined
           ? { isFeatured: parsed.data.isFeatured }
           : {}),
+        ...(parsed.data.startsAt !== undefined ? { startsAt } : {}),
+        ...(parsed.data.deadlineAt !== undefined ? { deadlineAt } : {}),
       },
     });
 

@@ -9,7 +9,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { formatUpdatedAt, type ResourceDto } from "@/lib/resources";
+import {
+  formatResourceDateTime,
+  formatUpdatedAt,
+  isPastDeadline,
+  type ResourceDto,
+} from "@/lib/resources";
 import { cn } from "@/lib/utils";
 
 type ResourcePreviewCardProps = {
@@ -120,9 +125,29 @@ export function ResourcePreviewCard({
               compact ? "py-3" : "py-4",
             )}
           >
-            <time dateTime={resource.updatedAt} className="text-muted-foreground text-xs">
-              {formatUpdatedAt(resource.updatedAt)}
-            </time>
+            <div className="text-muted-foreground flex min-w-0 flex-col gap-0.5 text-xs">
+              {resource.startsAt ? (
+                <span className="truncate">
+                  开始{" "}
+                  <time dateTime={resource.startsAt}>
+                    {formatResourceDateTime(resource.startsAt)}
+                  </time>
+                </span>
+              ) : null}
+              {resource.deadlineAt ? (
+                <span className="truncate">
+                  {isPastDeadline(resource.deadlineAt) ? "已截止" : "截止"}{" "}
+                  <time dateTime={resource.deadlineAt}>
+                    {formatResourceDateTime(resource.deadlineAt)}
+                  </time>
+                </span>
+              ) : null}
+              {!resource.startsAt && !resource.deadlineAt ? (
+                <time dateTime={resource.updatedAt}>
+                  {formatUpdatedAt(resource.updatedAt)}
+                </time>
+              ) : null}
+            </div>
             <ExternalLink
               href={resource.url}
               className={cn(buttonVariants({ variant: "outline", size: "sm" }), "group")}
