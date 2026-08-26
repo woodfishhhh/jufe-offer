@@ -1,0 +1,99 @@
+"use client";
+
+import { useEffect, useState, type ComponentType } from "react";
+
+import type { AsciiObjectProps } from "@/components/canvasui/AsciiObject";
+import { ResilientImage } from "@/components/resilient-image";
+import { site } from "@/data/site";
+import {
+  scheduleIdle,
+  shouldReduceEffects,
+  supportsWebGL2,
+} from "@/lib/client-performance";
+import { cn } from "@/lib/utils";
+
+export function EmblemCanvas({ className }: { className?: string }) {
+  const [renderer, setRenderer] = useState<ComponentType<AsciiObjectProps> | null>(null);
+  const [mode, setMode] = useState<"loading" | "active" | "fallback">("loading");
+
+  useEffect(() => {
+    let cancelled = false;
+    const cancelIdle = scheduleIdle(() => {
+      if (
+        shouldReduceEffects() ||
+        window.matchMedia("(max-width: 767px) and (pointer: coarse)").matches ||
+        !supportsWebGL2()
+      ) {
+        setMode("fallback");
+        return;
+      }
+      import("@/components/canvasui/AsciiObject")
+        .then((module) => {
+          if (!cancelled) setRenderer(() => module.AsciiObject);
+        })
+        .catch(() => {
+          if (!cancelled) setMode("fallback");
+        });
+    }, 700);
+    return () => {
+      cancelled = true;
+      cancelIdle();
+    };
+  }, []);
+
+  const Renderer = renderer;
+
+  return (
+    <div className={cn("relative h-full min-h-[360px] w-full", className)}>
+      {Renderer && mode !== "fallback" ? (
+        <Renderer
+          src="/models/jc.glb"
+          className="h-full w-full"
+          cellSize={5.6}
+          cellAspect={0.58}
+          contrast={1.35}
+          edgeContrast={2.4}
+          exposure={1.08}
+          environmentIntensity={0.85}
+          roughness={0.3}
+          scale={3.3}
+          modelRotation={[Math.PI / 2, 0, 0]}
+          floatIntensity={0.4}
+          rotationIntensity={0.18}
+          floatSpeed={0.7}
+          orbit
+          zoom={false}
+          autoRotate={false}
+          fov={46}
+          cameraDistance={4.6}
+          ascii
+          colored
+          background="#0a0a0a"
+          highlight="#ffffff"
+          onLoad={() => setMode("active")}
+          onError={() => setMode("fallback")}
+        />
+      ) : null}
+
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_50%_45%,rgba(255,255,255,0.12),transparent_48%)] transition-opacity duration-500",
+          mode === "active" ? "opacity-0" : "opacity-100",
+        )}
+        aria-hidden="true"
+      >
+        <span className="relative size-[min(52vw,56%)] max-h-[68%] max-w-[68%] overflow-hidden rounded-full border border-white/15 bg-white shadow-[0_30px_90px_-36px_rgba(255,255,255,0.42)]">
+          <ResilientImage
+            src={site.logoSrc}
+            fallbackSrc={site.logoFallbackSrc}
+            alt=""
+            fill
+            sizes="(max-width: 1023px) 52vw, 28vw"
+            fetchPriority="high"
+            className="object-cover"
+          />
+        </span>
+      </div>
+    </div>
+  );
+}

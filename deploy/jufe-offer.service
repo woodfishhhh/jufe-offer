@@ -1,0 +1,24 @@
+[Unit]
+Description=江财OFFER Next.js site
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/jufe-offer
+EnvironmentFile=/opt/jufe-offer/.env
+Environment=NODE_ENV=production
+Environment=PORT=3020
+Environment=HOSTNAME=0.0.0.0
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -H 0.0.0.0 -p 3020
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/jufe-offer/data /opt/jufe-offer/prisma
+
+[Install]
+WantedBy=multi-user.target
