@@ -140,6 +140,8 @@ jobs:
         run: |
           remote="${DEPLOY_USER}@${DEPLOY_HOST}"
           staging_dir="/opt/jufe-offer/releases/.staging-${GITHUB_SHA}"
+          remote_script="/opt/jufe-offer/incoming/deploy-release.sh"
+          remote_script_staging="${remote_script}.next-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           ssh_options=(
             -p "$DEPLOY_PORT"
             -o BatchMode=yes
@@ -154,9 +156,11 @@ jobs:
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=6 \
             deploy/deploy-release.sh \
-            "$remote:/opt/jufe-offer/incoming/deploy-release.sh"
+            "$remote:$remote_script_staging"
           ssh "${ssh_options[@]}" "$remote" \
-            "bash /opt/jufe-offer/incoming/deploy-release.sh prepare '${GITHUB_SHA}'"
+            "chmod 0755 '$remote_script_staging' \
+              && mv -f -- '$remote_script_staging' '$remote_script' \
+              && bash '$remote_script' prepare '${GITHUB_SHA}'"
 
           synchronized=false
           for attempt in 1 2 3; do
