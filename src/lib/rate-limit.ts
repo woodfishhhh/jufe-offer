@@ -3,21 +3,39 @@ type Bucket = {
   resetAt: number;
 };
 
+type RateLimitPolicy = {
+  windowMs: number;
+  maxAttempts: number;
+};
+
 const buckets = new Map<string, Bucket>();
 
-const WINDOW_MS = 15 * 60 * 1000;
-const MAX_ATTEMPTS = 8;
+const DEFAULT_POLICY: RateLimitPolicy = {
+  windowMs: 15 * 60 * 1000,
+  maxAttempts: 8,
+};
 
-export function consumeRateLimit(key: string) {
+function cleanExpiredBuckets(now: number) {
+  if (buckets.size < 1024) return;
+
+  for (const [key, bucket] of buckets) {
+    if (now >= bucket.resetAt) {
+      buckets.delete(key);
+    }
+  }
+}
+
+export function consumeRateLimit(key: string, policy: RateLimitPolicy = DEFAULT_POLICY) {
   const now = Date.now();
+  cleanExpiredBuckets(now);
   const current = buckets.get(key);
 
   if (!current || now >= current.resetAt) {
-    buckets.set(key, { count: 1, resetAt: now + WINDOW_MS });
-    return { ok: true as const, remaining: MAX_ATTEMPTS - 1 };
+    buckets.set(key, { count: 1, resetAt: now + policy.windowMs });
+    return { ok: true as const, remaining: policy.maxAttempts - 1 };
   }
 
-  if (current.count >= MAX_ATTEMPTS) {
+  if (current.count >= policy.maxAttempts) {
     return {
       ok: false as const,
       retryAfterMs: current.resetAt - now,
@@ -25,7 +43,7 @@ export function consumeRateLimit(key: string) {
   }
 
   current.count += 1;
-  return { ok: true as const, remaining: MAX_ATTEMPTS - current.count };
+  return { ok: true as const, remaining: policy.maxAttempts - current.count };
 }
 
 export function resetRateLimit(key: string) {

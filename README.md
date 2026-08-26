@@ -52,6 +52,7 @@ DATABASE_URL="file:./dev.db"
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD_HASH=
 SESSION_SECRET=
+OPENCLAW_INGEST_TOKEN=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
@@ -59,6 +60,13 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+OpenClaw 入库 Token 也可以用同一条命令单独生成。它必须至少 32 个字符，
+且不能与管理员密码或 `SESSION_SECRET` 复用：
+
+```env
+OPENCLAW_INGEST_TOKEN=生成的随机十六进制字符串
 ```
 
 ## 生成管理员密码哈希
@@ -226,6 +234,7 @@ DATABASE_URL="file:./dev.db"
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD_HASH=生产环境哈希
 SESSION_SECRET=生产环境随机密钥
+OPENCLAW_INGEST_TOKEN=生产环境独立随机密钥
 NEXT_PUBLIC_SITE_URL=https://your-domain.example
 ```
 
@@ -291,9 +300,88 @@ Copy-Item prisma/dev.db "backups/dev-$(Get-Date -Format yyyyMMdd).db"
 
 1. 打开资源页。
 2. 点击导航栏右侧的“管理员登录”。
-3. 登录成功后，资源页会出现“新增资源”，每条资源会出现“编辑”和“删除”。
-4. 删除前会二次确认，并显示资源名称。
-5. 退出登录后立即失去修改权限。
-6. 登录 Cookie 是当前浏览器会话，关闭浏览器后需要重新登录。
+3. 登录成功后，资源页会出现“待审核”和“新增资源”，每条资源会出现“编辑”和“删除”。
+4. “待审核”抽屉中可以查看 OpenClaw 保留的来源、官方链接和原始证据，并通过、拒绝或标记重复。
+5. 通过和拒绝都需要二次确认；通过会在一个数据库事务中创建正式资源并更新候选状态。
+6. 删除正式资源前也会二次确认，并显示资源名称。
+7. 退出登录后立即失去修改和审核权限。
+8. 登录 Cookie 是当前浏览器会话，关闭浏览器后需要重新登录。
 
 未登录用户仍可浏览、搜索和筛选资源。所有写操作都会在服务端校验管理员身份。
+
+## OpenClaw 候选入库接口
+
+OpenClaw 使用独立的 Bearer Token 调用：
+
+```text
+POST /api/integrations/openclaw/candidates
+Authorization: Bearer <OPENCLAW_INGEST_TOKEN>
+Content-Type: application/json
+```
+
+OpenClaw 不使用管理员用户名或密码，也不能直接访问 SQLite。每次提交都必须显式提供
+`disposition`：
+
+- `AUTO_PUBLISH`：OpenClaw 已完成来源核实并确认可以直接发布。服务端先保存完整 Candidate，再在同一事务中创建 Resource 并把 Candidate 标为 `APPROVED`。
+- `REVIEW_REQUIRED`：信息仍有疑问或风险，只写入 `PENDING`，等待管理员在 `/resources` 审核。
+
+接口不会删除或修改已有正式资源。相同 `dedupeKey` 不会建立第二条候选；自动发布时如发现正式资源中已有相同 URL，会把候选标记为 `DUPLICATE`。已进入
+`APPROVED`、`REJECTED` 或 `DUPLICATE` 的候选不能被 OpenClaw 覆盖回待审核状态。
+
+请求体最多 64 KiB，使用 strict schema，所有链接必须是 HTTPS。允许的分类只有：
+
+- `INTERNSHIP`
+- `CAMPUS_RECRUITMENT`
+- `REFERRAL`
+- `HACKATHON`
+- `TRAINING`
+- `CAREER_EXPERIENCE`
+- `RESUME_INTERVIEW`
+
+`OPEN_SOURCE_PROJECT` 不受支持。开源项目只接受江财成员人工投稿，不通过这个接口自动提交。
+
+允许的 `sourceType`：`RSSHUB`、`OFFICIAL_API`、`OFFICIAL_PAGE`、
+`WEB_MONITOR`、`MANUAL_RESEARCH`。
+
+请求示例：
+
+```json
+{
+  "externalId": "nowcoder:123456",
+  "dedupeKey": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "disposition": "REVIEW_REQUIRED",
+  "category": "INTERNSHIP",
+  "title": "某公司 2027 届暑期实习",
+  "summary": "面向 2027 届学生，包含研发和算法岗位。",
+  "sourceType": "RSSHUB",
+  "sourceName": "牛客",
+  "sourceUrl": "https://example.com/source",
+  "officialUrl": "https://example.com/official",
+  "deadline": "2026-09-15T23:59:59+08:00",
+  "tags": ["27届", "研发", "实习"],
+  "rawExcerpt": "保留的原始证据文本",
+  "discoveredAt": "2026-08-26T06:00:00Z"
+}
+```
+
+成功响应：
+
+- 首次创建待审核候选：HTTP 201，`{"ok":true,"candidateId":"...","action":"created"}`
+- 更新同一 `externalId` 的待审核候选：HTTP 200，`action` 为 `updated`
+- 命中其他候选的 `dedupeKey` 或已有相同 URL：HTTP 200，`action` 为 `duplicate`
+- 自动发布：新候选 HTTP 201、已有待审核候选 HTTP 200，`action` 为 `published`
+
+Token 未正确配置时返回 503；Token 缺失或错误时返回 401；非法字段返回 400；
+已审核候选重投或并发状态冲突返回 409；触发每分钟 60 次的单实例速率限制时返回 429。
+
+管理员审核接口继续使用现有 Session Cookie：
+
+```text
+GET  /api/admin/candidates?status=PENDING
+POST /api/admin/candidates/:id/approve
+POST /api/admin/candidates/:id/reject
+POST /api/admin/candidates/:id/duplicate
+```
+
+拒绝和标记重复可提交可选的 `reviewNote`，最多 300 个字。候选审核后不会删除，
+原始来源与证据会继续保留。

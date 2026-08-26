@@ -6,6 +6,7 @@ import { Search, SlidersHorizontal, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth-provider";
 import { FlowingWaves } from "@/components/flowing-waves";
+import { CandidateReviewPanel } from "@/components/resources/candidate-review-panel";
 import { DeleteResourceDialog } from "@/components/resources/delete-resource-dialog";
 import { ResourceCard } from "@/components/resources/resource-card";
 import { ResourceFormDialog } from "@/components/resources/resource-form-dialog";
@@ -213,18 +214,21 @@ export function ResourceBoard() {
         </div>
 
         {authenticated ? (
-          <Button
-            type="button"
-            onClick={() => {
-              setEditing(null);
-              setFormError("");
-              setFieldErrors(undefined);
-              setFormOpen(true);
-            }}
-            size="lg"
-          >
-            新增资源
-          </Button>
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+            <CandidateReviewPanel onResourceApproved={loadResources} />
+            <Button
+              type="button"
+              onClick={() => {
+                setEditing(null);
+                setFormError("");
+                setFieldErrors(undefined);
+                setFormOpen(true);
+              }}
+              size="lg"
+            >
+              新增资源
+            </Button>
+          </div>
         ) : null}
       </div>
 

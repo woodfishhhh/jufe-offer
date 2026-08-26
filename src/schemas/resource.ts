@@ -5,7 +5,7 @@ const httpUrl = z
   .string()
   .trim()
   .min(1, "请填写资源链接")
-  .max(500, "链接最多 500 个字符")
+  .max(1000, "链接最多 1000 个字符")
   .refine((value) => {
     try {
       const url = new URL(value);
@@ -19,11 +19,11 @@ const tagSchema = z
   .string()
   .trim()
   .min(1, "标签不能为空")
-  .max(16, "单个标签最多 16 个字");
+  .max(20, "单个标签最多 20 个字");
 
 export const resourceInputSchema = z.strictObject({
-  title: z.string().trim().min(1, "标题不能为空").max(80, "标题最多 80 个字"),
-  description: z.string().trim().min(1, "简介不能为空").max(280, "简介最多 280 个字"),
+  title: z.string().trim().min(1, "标题不能为空").max(120, "标题最多 120 个字"),
+  description: z.string().trim().min(1, "简介不能为空").max(1000, "简介最多 1000 个字"),
   url: httpUrl,
   category: z.enum(CATEGORY_VALUES),
   tags: z.array(tagSchema).max(8, "最多添加 8 个标签"),

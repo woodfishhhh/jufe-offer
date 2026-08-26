@@ -7,14 +7,74 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum CandidateCategory {
+  INTERNSHIP
+  CAMPUS_RECRUITMENT
+  REFERRAL
+  HACKATHON
+  TRAINING
+  CAREER_EXPERIENCE
+  RESUME_INTERVIEW
+}
+
+enum CandidateSourceType {
+  RSSHUB
+  OFFICIAL_API
+  OFFICIAL_PAGE
+  WEB_MONITOR
+  MANUAL_RESEARCH
+}
+
+enum CandidateIngestDisposition {
+  AUTO_PUBLISH
+  REVIEW_REQUIRED
+}
+
+enum CandidateStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DUPLICATE
+}
+
 model Resource {
-  id          String   @id @default(cuid())
+  id          String      @id @default(cuid())
   title       String
   description String
   url         String
   category    String
   tags        String
-  isFeatured  Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isFeatured  Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  candidates  Candidate[]
+}
+
+model Candidate {
+  id                String                     @id @default(cuid())
+  externalId        String                     @unique
+  dedupeKey         String                     @unique
+  category          CandidateCategory
+  title             String
+  summary           String
+  sourceType        CandidateSourceType
+  sourceName        String
+  sourceUrl         String
+  officialUrl       String?
+  deadline          DateTime?
+  tags              String
+  rawExcerpt        String?
+  discoveredAt      DateTime
+  ingestDisposition CandidateIngestDisposition
+  status            CandidateStatus            @default(PENDING)
+  reviewNote        String?
+  reviewedAt        DateTime?
+  resourceId        String?
+  resource          Resource?                  @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  @@index([status, createdAt])
+  @@index([category, status])
+  @@index([resourceId])
 }
