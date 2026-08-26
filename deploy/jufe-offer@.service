@@ -16,6 +16,7 @@ Restart=always
 RestartSec=3
 TimeoutStopSec=30
 KillSignal=SIGTERM
+SuccessExitStatus=143
 UMask=0027
 StandardOutput=journal
 StandardError=journal
