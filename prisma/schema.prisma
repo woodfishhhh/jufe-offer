@@ -11,10 +11,23 @@ enum CandidateCategory {
   INTERNSHIP
   CAMPUS_RECRUITMENT
   REFERRAL
+  COMPETITION
   HACKATHON
+  OPEN_SOURCE_RESOURCE
   TRAINING
+  PROGRAMMING_LEARNING
+  LEARNING_PATH
+  PROGRAMMING_TOOL
   CAREER_EXPERIENCE
   RESUME_INTERVIEW
+  CAMPUS_RESOURCE
+  OTHER_RESOURCE
+}
+
+enum ResourceOrigin {
+  SEED
+  MANUAL
+  OPENCLAW
 }
 
 enum CandidateSourceType {
@@ -45,6 +58,7 @@ model Resource {
   category    String
   tags        String
   isFeatured  Boolean     @default(false)
+  origin      ResourceOrigin @default(MANUAL)
   startsAt    DateTime?
   deadlineAt  DateTime?
   createdAt   DateTime    @default(now())

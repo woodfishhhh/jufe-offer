@@ -2,6 +2,11 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
+import {
+  cancelDeferredCanvasRelease,
+  getAdaptiveCanvasDpr,
+  scheduleDeferredCanvasRelease,
+} from "@/lib/client-performance";
 import { createRectCache } from "../rect-cache";
 
 export interface CanvasOptions {
@@ -322,6 +327,7 @@ export function createCanvas(
 ): CanvasInstance | null {
   const config = { ...DEFAULTS, ...options };
   const { source, content, output } = elements;
+  cancelDeferredCanvasRelease(output);
 
   const gl = output.getContext("webgl2", {
     alpha: true,
@@ -582,7 +588,7 @@ export function createCanvas(
   let contentMaxX = 1;
 
   function syncCanvasSize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = getAdaptiveCanvasDpr(output.clientWidth, output.clientHeight);
     const width = Math.max(1, Math.round(output.clientWidth * dpr));
     const height = Math.max(1, Math.round(output.clientHeight * dpr));
     if (output.width !== width || output.height !== height) {
@@ -596,9 +602,11 @@ export function createCanvas(
     if (htmlInCanvas) {
       const cssWidth = Math.max(1, Math.round(source.clientWidth));
       const cssHeight = Math.max(1, Math.round(source.clientHeight));
-      if (source.width !== cssWidth * dpr || source.height !== cssHeight * dpr) {
-        source.width = cssWidth * dpr;
-        source.height = cssHeight * dpr;
+      const sourceWidth = Math.max(1, Math.round(cssWidth * dpr));
+      const sourceHeight = Math.max(1, Math.round(cssHeight * dpr));
+      if (source.width !== sourceWidth || source.height !== sourceHeight) {
+        source.width = sourceWidth;
+        source.height = sourceHeight;
       }
       paintable.requestPaint!();
     }
@@ -750,13 +758,25 @@ export function createCanvas(
   let destroyed = false;
   let running = false;
   let visible = true;
+  let pageVisible = !document.hidden;
+  let contentPaintRaf = 0;
+
+  function scheduleContentPaint() {
+    if (!htmlInCanvas || contentPaintRaf || destroyed) return;
+    contentPaintRaf = requestAnimationFrame(() => {
+      contentPaintRaf = 0;
+      if (destroyed) return;
+      paintable.requestPaint!();
+      start();
+    });
+  }
 
   const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
   let reducedMotion = motionQuery.matches;
 
   function frame(now: number) {
     if (destroyed) return;
-    if (!visible) {
+    if (!visible || !pageVisible) {
       running = false;
       return;
     }
@@ -765,7 +785,7 @@ export function createCanvas(
     if (
       htmlInCanvas &&
       nestedCanvases.length > 0 &&
-      now - lastNestedCapture >= 1000 / 30
+      now - lastNestedCapture >= 1000 / (pointer.active > 0.02 ? 30 : 20)
     ) {
       lastNestedCapture = now;
       paintable.requestPaint!();
@@ -796,7 +816,7 @@ export function createCanvas(
   }
 
   function start() {
-    if (destroyed || running || !visible) return;
+    if (destroyed || running || !visible || !pageVisible) return;
     running = true;
     lastTime = performance.now();
     raf = requestAnimationFrame(frame);
@@ -811,9 +831,19 @@ export function createCanvas(
   }
   motionQuery.addEventListener("change", onMotionChange);
 
+  function onVisibilityChange() {
+    pageVisible = !document.hidden;
+    if (!pageVisible) {
+      cancelAnimationFrame(raf);
+      running = false;
+      return;
+    }
+    start();
+  }
+  document.addEventListener("visibilitychange", onVisibilityChange);
+
   const observer = new ResizeObserver(() => {
     syncCanvasSize();
-    if (htmlInCanvas) paintable.requestPaint!();
     scheduleTextMask();
     start();
   });
@@ -821,7 +851,7 @@ export function createCanvas(
   observer.observe(content);
 
   const mutationObserver = new MutationObserver(() => {
-    if (htmlInCanvas) paintable.requestPaint!();
+    scheduleContentPaint();
     scheduleTextMask();
     start();
   });
@@ -856,7 +886,7 @@ export function createCanvas(
   }
 
   function onScroll() {
-    if (htmlInCanvas) paintable.requestPaint!();
+    scheduleContentPaint();
     scheduleTextMask();
     start();
   }
@@ -897,11 +927,13 @@ export function createCanvas(
       destroyed = true;
       rectCache.destroy();
       cancelAnimationFrame(raf);
+      cancelAnimationFrame(contentPaintRaf);
       window.clearTimeout(maskTimer);
       observer.disconnect();
       mutationObserver.disconnect();
       intersection.disconnect();
       motionQuery.removeEventListener("change", onMotionChange);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       listenTarget.removeEventListener("pointermove", onPointerMove);
       listenTarget.removeEventListener("pointerleave", onPointerLeave);
       content.removeEventListener("scroll", onScroll, {
@@ -920,6 +952,15 @@ export function createCanvas(
       gl!.deleteShader(paintShader);
       gl!.deleteBuffer(quad);
       if (htmlInCanvas) paintable.onpaint = null;
+      scheduleDeferredCanvasRelease(output, () => {
+        gl!.getExtension("WEBGL_lose_context")?.loseContext();
+        source.width = 1;
+        source.height = 1;
+        output.width = 1;
+        output.height = 1;
+        maskCanvas.width = 1;
+        maskCanvas.height = 1;
+      });
     },
   };
 }

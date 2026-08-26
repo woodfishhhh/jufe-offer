@@ -1,7 +1,7 @@
 "use client";
 
+import { memo } from "react";
 import { ArrowUpRight, CalendarClock, Clock3, Pencil, Star, Trash2 } from "lucide-react";
-import { FlameWrap } from "@/components/canvasui/FlameWrap";
 import { ExternalLink } from "@/components/external-link";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
 import {
   formatResourceDateTime,
   isPastDeadline,
+  RESOURCE_ORIGIN_LABELS,
   type ResourceDto,
 } from "@/lib/resources";
 import { cn } from "@/lib/utils";
@@ -86,6 +87,7 @@ function ResourceBadges({ resource }: { resource: ResourceDto }) {
         </Badge>
       ) : null}
       <Badge variant="outline">{resource.category}</Badge>
+      <Badge variant="secondary">{RESOURCE_ORIGIN_LABELS[resource.origin]}</Badge>
     </div>
   );
 }
@@ -171,6 +173,7 @@ function FeedCard(props: ResourceCardProps) {
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{resource.category}</Badge>
           {resource.isFeatured ? <Badge>精选</Badge> : null}
+          <Badge variant="secondary">{RESOURCE_ORIGIN_LABELS[resource.origin]}</Badge>
           <ResourceTimeMeta resource={resource} compact />
         </div>
         <h2 className="font-display mt-2 text-lg font-semibold tracking-[-0.025em] sm:text-xl">
@@ -228,42 +231,13 @@ function MasonryCard(props: ResourceCardProps) {
     </Card>
   );
 
-  return (
-    <article className="w-full">
-      {resource.isFeatured ? (
-        <FlameWrap
-          color={[0.76, 0.1, 0.14]}
-          intensity={0.42}
-          height={42}
-          spread={5}
-          radius={16}
-          speed={0.2}
-          scale={0.45}
-          turbulence={0.28}
-          turbulenceScale={0.65}
-          turbulenceReach={10}
-          sparks={0.65}
-          sparkSize={0.3}
-          sparkDensity={0.6}
-          sparkSpeed={0.7}
-          rim={1.3}
-          melt={1.2}
-          distortion={2.5}
-          smoke={0.25}
-          ember={1.1}
-          scorch={0.2}
-          className="rounded-2xl"
-        >
-          {card}
-        </FlameWrap>
-      ) : (
-        card
-      )}
-    </article>
-  );
+  return <article className="w-full">{card}</article>;
 }
 
-export function ResourceCard(props: ResourceCardProps) {
+function ResourceCardComponent(props: ResourceCardProps) {
   if (props.view === "feed") return <FeedCard {...props} />;
   return <MasonryCard {...props} />;
 }
+
+export const ResourceCard = memo(ResourceCardComponent);
+ResourceCard.displayName = "ResourceCard";

@@ -1,5 +1,11 @@
-import type { Resource } from "@prisma/client";
+import type { Resource, ResourceOrigin } from "@prisma/client";
 import { parseTags } from "@/lib/tags";
+
+export const RESOURCE_ORIGIN_LABELS: Record<ResourceOrigin, string> = {
+  SEED: "初始整理",
+  MANUAL: "人工整理",
+  OPENCLAW: "自动采集",
+};
 
 export type ResourceDto = {
   id: string;
@@ -9,6 +15,7 @@ export type ResourceDto = {
   category: string;
   tags: string[];
   isFeatured: boolean;
+  origin: ResourceOrigin;
   startsAt: string | null;
   deadlineAt: string | null;
   createdAt: string;
@@ -24,6 +31,7 @@ export function toResourceDto(resource: Resource): ResourceDto {
     category: resource.category,
     tags: parseTags(resource.tags),
     isFeatured: resource.isFeatured,
+    origin: resource.origin,
     startsAt: resource.startsAt?.toISOString() ?? null,
     deadlineAt: resource.deadlineAt?.toISOString() ?? null,
     createdAt: resource.createdAt.toISOString(),

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Manrope, Syne } from "next/font/google";
 import { AuthProvider } from "@/components/auth-provider";
-import { Ripple } from "@/components/canvasui/Ripple";
+import { Glitch } from "@/components/canvasui/Glitch";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { AppToaster } from "@/components/toaster";
@@ -61,22 +61,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="bg-background text-foreground selection:bg-foreground selection:text-background flex min-h-full flex-col font-sans">
         <AuthProvider>
           <SiteHeader />
-          <Ripple
-            className="relative flex min-h-0 flex-1 flex-col"
-            amplitude={0.15}
-            speed={2.65}
-            wavelength={73}
-            decay={0.7}
-            rings={1}
-            dispersion={0.74}
-            shine={1.9}
-            interval={5}
-            refraction={16}
-            trigger="click"
-          >
+          <Glitch className="relative flex min-h-0 flex-1 flex-col">
             <main className="min-h-0 flex-1">{children}</main>
             <SiteFooter />
-          </Ripple>
+          </Glitch>
           <AppToaster />
         </AuthProvider>
       </body>

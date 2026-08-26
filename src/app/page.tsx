@@ -1,41 +1,23 @@
 import Link from "next/link";
-import { ArrowUpRight, Search } from "lucide-react";
+import { ArrowUpRight, Github, Heart, Search } from "lucide-react";
+import { FlameWrap } from "@/components/canvasui/FlameWrap";
 import { FlowingWaves } from "@/components/flowing-waves";
 import { DeferredCommunityPanel } from "@/components/home/deferred-community-panel";
 import { EmblemCanvas } from "@/components/home/emblem-canvas";
+import { HomeCategoryGrid } from "@/components/home/home-category-grid";
 import { HomeDeck } from "@/components/home/home-deck";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { HOME_CATEGORY_PREVIEWS } from "@/data/categories";
 import { site } from "@/data/site";
-import { prisma } from "@/lib/prisma";
 import { cn } from "@/lib/utils";
-
-export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "首页",
   description: site.tagline,
 };
 
-async function loadCategoryCounts() {
-  try {
-    const categoryCounts = await prisma.resource.groupBy({
-      by: ["category"],
-      _count: { _all: true },
-    });
-
-    return new Map(categoryCounts.map((item) => [item.category, item._count._all]));
-  } catch {
-    return new Map<string, number>();
-  }
-}
-
-export default async function HomePage() {
-  const countByCategory = await loadCategoryCounts();
-
+export default function HomePage() {
   return (
     <HomeDeck className="bg-background text-foreground">
       <section className="border-border relative overflow-hidden border-b lg:h-full lg:min-h-0">
@@ -149,32 +131,116 @@ export default async function HomePage() {
             </Button>
           </form>
 
-          <div className="mt-6 grid grid-cols-2 gap-2.5 sm:mt-8 sm:grid-cols-3 sm:gap-3 lg:gap-4">
-            {HOME_CATEGORY_PREVIEWS.map((item, index) => (
+          <HomeCategoryGrid />
+        </div>
+      </section>
+
+      <section className="relative overflow-hidden bg-[#080808] text-white lg:h-full lg:min-h-0">
+        <div
+          className="pointer-events-none absolute inset-0 overflow-hidden"
+          aria-hidden="true"
+        >
+          <div className="absolute top-[-20%] right-[-10%] size-[min(72vw,880px)] rounded-full border border-white/[0.055]" />
+          <div className="absolute right-[4%] bottom-[-38%] size-[min(58vw,680px)] rounded-full border border-white/[0.045]" />
+          <Github className="absolute right-[5%] bottom-[-8%] size-[min(42vw,520px)] text-white/[0.025]" />
+        </div>
+
+        <div className="relative mx-auto flex h-full max-w-[1280px] flex-col justify-center px-5 pt-[calc(var(--nav-clearance)+0.75rem)] pb-6 sm:px-8 sm:pt-[calc(var(--nav-clearance)+1rem)] sm:pb-8">
+          <ScrollReveal className="grid items-end gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(380px,0.95fr)] lg:gap-12">
+            <div>
+              <div className="flex items-end gap-5">
+                <span className="pb-1 font-mono text-xs text-white/40">04</span>
+                <div>
+                  <p className="mb-3 text-xs tracking-[0.18em] text-white/48 uppercase">
+                    Open source / build together
+                  </p>
+                  <h2 className="font-display max-w-3xl text-3xl leading-[0.98] font-bold tracking-[-0.05em] sm:text-5xl lg:text-6xl">
+                    欢迎各位参与共建与共享
+                  </h2>
+                </div>
+              </div>
+              <p className="mt-5 max-w-2xl text-sm leading-6 text-white/56 sm:mt-7 sm:text-base sm:leading-7">
+                JUFE OFFER
+                是由同学共同维护的开放项目。欢迎补充资源、完善体验、提出建议，让有价值的信息流向更多江财人。
+              </p>
               <Link
-                key={item.category}
-                href={`/resources?category=${encodeURIComponent(item.category)}`}
-                className="group block"
+                href="https://github.com/woodfishhhh/jufe-offer"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(
+                  buttonVariants({ size: "lg" }),
+                  "mt-5 gap-2 bg-white text-black hover:bg-white/90 sm:mt-7",
+                )}
               >
-                <Card className="studio-card bg-background/72 hover:border-foreground h-full gap-0 p-3 backdrop-blur-md sm:p-5">
-                  <span className="flex items-start justify-between gap-3">
-                    <span>
-                      <span className="text-muted-foreground block text-[10px] tracking-[0.16em]">
-                        {String(index + 1).padStart(2, "0")}
-                      </span>
-                      <span className="mt-2 block text-sm font-semibold sm:text-base">
-                        {item.category}
-                      </span>
-                    </span>
-                    <ArrowUpRight className="text-muted-foreground group-hover:text-foreground size-4 transition-transform duration-150 ease-[var(--ease-out)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                  </span>
-                  <span className="text-muted-foreground mt-3 block text-xs sm:mt-5">
-                    {countByCategory.get(item.category) ?? 0} 个资源
-                  </span>
-                </Card>
+                访问 GitHub 仓库
+                <ArrowUpRight className="size-4" />
               </Link>
-            ))}
-          </div>
+            </div>
+
+            <FlameWrap color={[185 / 255, 27 / 255, 32 / 255]} radius={28}>
+              <Link
+                href="https://github.com/woodfishhhh/jufe-offer"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="在 GitHub 查看 woodfishhhh/jufe-offer 仓库"
+                className="group block rounded-[1.75rem] border border-white/12 bg-[#111] p-5 text-white transition-[border-color,background-color] duration-150 hover:border-white/24 hover:bg-[#151515] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:p-7"
+              >
+                <span className="flex items-center justify-between gap-4">
+                  <span className="grid size-11 place-items-center rounded-full border border-white/12 bg-white/[0.06]">
+                    <Github className="size-5" />
+                  </span>
+                  <ArrowUpRight className="size-5 text-white/42 transition-transform duration-150 ease-[var(--ease-out)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-white" />
+                </span>
+                <span className="mt-7 block text-[10px] tracking-[0.2em] text-white/38 uppercase">
+                  Public repository
+                </span>
+                <span className="mt-2 block font-mono text-lg tracking-[-0.035em] sm:text-2xl">
+                  woodfishhhh / jufe-offer
+                </span>
+                <span className="mt-6 flex flex-wrap gap-2 border-t border-white/10 pt-4 font-mono text-[9px] tracking-[0.12em] text-white/38 uppercase">
+                  <span>Open source</span>
+                  <span aria-hidden="true">/</span>
+                  <span>Next.js</span>
+                  <span aria-hidden="true">/</span>
+                  <span>TypeScript</span>
+                </span>
+              </Link>
+            </FlameWrap>
+          </ScrollReveal>
+
+          <ScrollReveal
+            className="mt-6 border-t border-white/10 pt-4 sm:mt-8 sm:pt-5"
+            delay={80}
+          >
+            <div className="mb-3 flex items-center gap-2 text-xs tracking-[0.16em] text-white/42 uppercase sm:mb-4">
+              <Heart className="size-3.5" />
+              <span>特别感谢</span>
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
+              <div className="flex items-center gap-3 rounded-2xl border border-white/9 bg-white/[0.025] px-4 py-3 sm:px-5 sm:py-4">
+                <span className="text-xl" aria-hidden="true">
+                  🌈
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">哈奇瓦乐ò.óMono</span>
+                  <span className="mt-1 block text-xs text-white/44">
+                    提供校徽 3D 资产
+                  </span>
+                </span>
+              </div>
+              <div className="flex items-center gap-3 rounded-2xl border border-white/9 bg-white/[0.025] px-4 py-3 sm:px-5 sm:py-4">
+                <span className="text-xl" aria-hidden="true">
+                  🐮
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">JunieXD、MIUMA</span>
+                  <span className="mt-1 block text-xs text-white/44">
+                    对 JUFE OFFER 的一线支持
+                  </span>
+                </span>
+              </div>
+            </div>
+          </ScrollReveal>
         </div>
       </section>
     </HomeDeck>

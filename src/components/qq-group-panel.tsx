@@ -11,6 +11,7 @@ import { ScrollReveal } from "@/components/scroll-reveal";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { site } from "@/data/site";
+import { scheduleIdle } from "@/lib/client-performance";
 import { cn } from "@/lib/utils";
 
 const RESTING_TRANSFORM = "rotateX(2deg) rotateY(-6deg)";
@@ -22,19 +23,7 @@ export function QqGroupPanel() {
   const [decryptReady, setDecryptReady] = useState(false);
 
   useEffect(() => {
-    const stage = stageRef.current;
-    if (!stage) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry?.isIntersecting) return;
-        setDecryptReady(true);
-        observer.disconnect();
-      },
-      { threshold: 0.2 },
-    );
-    observer.observe(stage);
-    return () => observer.disconnect();
+    return scheduleIdle(() => setDecryptReady(true), 700);
   }, []);
 
   useEffect(
@@ -106,14 +95,56 @@ export function QqGroupPanel() {
           <span className="community-pass__brand-rule" />
           <span>ACCESS / 729</span>
         </div>
-        <div className="community-pass__copy">
-          <p>{site.qqGroupPurpose}</p>
-          <h2>
-            <span>{site.communityCardTitle}</span>
-          </h2>
+        <div className="community-pass__body">
+          <div className="community-pass__copy">
+            <p>{site.qqGroupPurpose}</p>
+            <h2>
+              <span>{site.communityCardTitle}</span>
+            </h2>
+          </div>
+
+          <div className="community-pass__qr">
+            <div className="community-pass__qr-header">
+              <QrCode />
+              <span>QQ GROUP</span>
+              <span>SCAN / 02</span>
+            </div>
+            <div className="community-pass__qr-image">
+              <ResilientImage
+                src={site.qqGroupQrSrc}
+                alt={`${site.qqGroupName}群二维码`}
+                width={400}
+                height={400}
+                loading="eager"
+                sizes="(max-width: 480px) 176px, (max-width: 1023px) 232px, 248px"
+                className="h-auto w-full"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </>
+  );
+
+  const floatingQrCard = (
+    <Card className="community-qr-card">
+      <div className="community-qr-card__header">
+        <QrCode />
+        <span>QQ GROUP</span>
+        <span>SCAN / 02</span>
+      </div>
+      <div className="community-qr-card__image">
+        <ResilientImage
+          src={site.qqGroupQrSrc}
+          alt={`${site.qqGroupName}群二维码`}
+          width={400}
+          height={400}
+          loading="eager"
+          sizes="248px"
+          className="h-auto w-full"
+        />
+      </div>
+    </Card>
   );
 
   const actionContent = (
@@ -192,24 +223,7 @@ export function QqGroupPanel() {
                     {passContent}
                     <div className="community-pass__actions-layer">{actionContent}</div>
                   </Card>
-
-                  <Card className="community-qr-card">
-                    <div className="community-qr-card__header">
-                      <QrCode />
-                      <span>QQ GROUP</span>
-                      <span>SCAN / 02</span>
-                    </div>
-                    <div className="community-qr-card__image">
-                      <ResilientImage
-                        src={site.qqGroupQrSrc}
-                        alt={`${site.qqGroupName}群二维码`}
-                        width={400}
-                        height={400}
-                        sizes="(max-width: 767px) 148px, 248px"
-                        className="h-auto w-full"
-                      />
-                    </div>
-                  </Card>
+                  {floatingQrCard}
                 </DecryptReveal>
               ) : (
                 <div className="community-stage__decrypt">
@@ -217,24 +231,7 @@ export function QqGroupPanel() {
                     {passContent}
                     <div className="community-pass__actions-layer">{actionContent}</div>
                   </Card>
-
-                  <Card className="community-qr-card">
-                    <div className="community-qr-card__header">
-                      <QrCode />
-                      <span>QQ GROUP</span>
-                      <span>SCAN / 02</span>
-                    </div>
-                    <div className="community-qr-card__image">
-                      <ResilientImage
-                        src={site.qqGroupQrSrc}
-                        alt={`${site.qqGroupName}群二维码`}
-                        width={400}
-                        height={400}
-                        sizes="(max-width: 767px) 148px, 248px"
-                        className="h-auto w-full"
-                      />
-                    </div>
-                  </Card>
+                  {floatingQrCard}
                 </div>
               )}
 

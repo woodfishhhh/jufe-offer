@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import {
+  cancelDeferredCanvasRelease,
+  getAdaptiveCanvasDpr,
+  scheduleDeferredCanvasRelease,
+} from "@/lib/client-performance";
 
 import { createRectCache } from "../rect-cache";
 
@@ -140,6 +145,7 @@ export function createDisplacement(
 ): DisplacementInstance | null {
   const config = { ...DEFAULTS, ...options };
   const { source, content, output } = elements;
+  cancelDeferredCanvasRelease(output);
 
   const gl = output.getContext("webgl2", {
     alpha: true,
@@ -274,7 +280,7 @@ export function createDisplacement(
   let dpr = 1;
 
   function syncCanvasSize() {
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    dpr = getAdaptiveCanvasDpr(output.clientWidth, output.clientHeight);
     outW = Math.max(1, output.clientWidth);
     outH = Math.max(1, output.clientHeight);
     const width = Math.max(1, Math.round(outW * dpr));
@@ -286,9 +292,11 @@ export function createDisplacement(
     if (htmlInCanvas) {
       const cssWidth = Math.max(1, Math.round(source.clientWidth));
       const cssHeight = Math.max(1, Math.round(source.clientHeight));
-      if (source.width !== cssWidth * dpr || source.height !== cssHeight * dpr) {
-        source.width = cssWidth * dpr;
-        source.height = cssHeight * dpr;
+      const sourceWidth = Math.max(1, Math.round(cssWidth * dpr));
+      const sourceHeight = Math.max(1, Math.round(cssHeight * dpr));
+      if (source.width !== sourceWidth || source.height !== sourceHeight) {
+        source.width = sourceWidth;
+        source.height = sourceHeight;
       }
       paintable.requestPaint!();
     }
@@ -402,12 +410,13 @@ export function createDisplacement(
   let destroyed = false;
   let running = false;
   let visible = true;
+  let pageVisible = !document.hidden;
   let lastNestedCapture = 0;
   const nestedCanvases = content.getElementsByTagName("canvas");
 
   function frame(now: number) {
     if (destroyed) return;
-    if (!visible) {
+    if (!visible || !pageVisible) {
       running = false;
       return;
     }
@@ -430,7 +439,7 @@ export function createDisplacement(
   }
 
   function start() {
-    if (destroyed || running || !visible) return;
+    if (destroyed || running || !visible || !pageVisible) return;
     running = true;
     lastTime = performance.now();
     raf = requestAnimationFrame(frame);
@@ -450,6 +459,17 @@ export function createDisplacement(
     start();
   }
   motionQuery.addEventListener("change", onMotionChange);
+
+  function onVisibilityChange() {
+    pageVisible = !document.hidden;
+    if (!pageVisible) {
+      cancelAnimationFrame(raf);
+      running = false;
+      return;
+    }
+    start();
+  }
+  document.addEventListener("visibilitychange", onVisibilityChange);
 
   const pointerHost = output.parentElement ?? output;
 
@@ -544,6 +564,7 @@ export function createDisplacement(
       observer.disconnect();
       intersection.disconnect();
       motionQuery.removeEventListener("change", onMotionChange);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       pointerHost.removeEventListener("pointermove", onPointerMove);
       pointerHost.removeEventListener("pointerleave", onPointerLeave);
       pointerHost.removeEventListener("pointercancel", onPointerLeave);
@@ -554,6 +575,13 @@ export function createDisplacement(
       gl!.deleteShader(fragmentShader);
       gl!.deleteBuffer(quad);
       if (htmlInCanvas) paintable.onpaint = null;
+      scheduleDeferredCanvasRelease(output, () => {
+        gl!.getExtension("WEBGL_lose_context")?.loseContext();
+        source.width = 1;
+        source.height = 1;
+        output.width = 1;
+        output.height = 1;
+      });
     },
   };
 }

@@ -551,7 +551,7 @@ body:has(.home-deck) footer {
   }
 }
 
-/* Fourth-screen community pass: a restrained 3D scene, not a container card. */
+/* Second-screen community pass: one responsive card with an embedded QR code. */
 .community-stage {
   position: relative;
   isolation: isolate;
@@ -842,6 +842,13 @@ body:has(.home-deck) footer {
   padding: clamp(1.5rem, 3vw, 3rem);
 }
 
+.community-pass__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .community-pass__brand {
   display: flex;
   align-items: center;
@@ -875,6 +882,7 @@ body:has(.home-deck) footer {
 
 .community-pass__copy {
   max-width: 72%;
+  min-width: 0;
   margin-top: auto;
   margin-bottom: clamp(5.75rem, 10vh, 7.25rem);
 }
@@ -945,6 +953,52 @@ body:has(.home-deck) footer {
   background: var(--brand-red);
 }
 
+.community-pass__qr {
+  position: relative;
+  z-index: 3;
+  display: none;
+  width: 100%;
+  padding: 0.7rem;
+  border: 1px solid rgb(0 0 0 / 0.16);
+  border-radius: clamp(1rem, 1.6vw, 1.35rem);
+  color: #000;
+  background: #fff;
+  box-shadow:
+    0 24px 54px -30px rgb(0 0 0 / 0.88),
+    0 0 0 1px rgb(255 255 255 / 0.3);
+}
+
+.community-pass__qr-header {
+  display: flex;
+  align-items: center;
+  color: #000;
+  font-size: 0.5rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.community-pass__qr-header {
+  gap: 0.5rem;
+  padding: 0.15rem 0.15rem 0.55rem;
+}
+
+.community-pass__qr-header svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.community-pass__qr-header span:last-child {
+  margin-left: auto;
+}
+
+.community-pass__qr-image {
+  overflow: hidden;
+  border: 1px solid rgb(0 0 0 / 0.08);
+  border-radius: 0.7rem;
+  background: white;
+}
+
 .community-qr-card {
   --card-spacing: 0px;
 
@@ -971,16 +1025,13 @@ body:has(.home-deck) footer {
 .community-qr-card__header {
   display: flex;
   align-items: center;
+  gap: 0.5rem;
+  padding: 0.15rem 0.15rem 0.55rem;
   color: #000;
   font-size: 0.5rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   white-space: nowrap;
-}
-
-.community-qr-card__header {
-  gap: 0.5rem;
-  padding: 0.15rem 0.15rem 0.55rem;
 }
 
 .community-qr-card__header svg {
@@ -1012,6 +1063,50 @@ body:has(.home-deck) footer {
   transform: translateZ(18px);
 }
 
+@media (max-width: 1023px) {
+  .community-pass__depth {
+    top: 9%;
+    left: 1%;
+    width: 92%;
+    height: 80%;
+  }
+
+  .community-pass {
+    top: 5%;
+    width: 92%;
+    height: 84%;
+  }
+
+  .community-pass__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(170px, 29vw, 232px);
+    align-items: center;
+    gap: clamp(1.25rem, 4vw, 3rem);
+    padding-bottom: clamp(4.75rem, 8vh, 6.25rem);
+  }
+
+  .community-pass__copy {
+    max-width: none;
+    margin: 0;
+  }
+
+  .community-pass__copy h2 {
+    font-size: clamp(3rem, 7.8vw, 5.25rem);
+  }
+
+  .community-pass__actions-layer {
+    width: min(55%, 520px);
+  }
+
+  .community-pass__qr {
+    display: block;
+  }
+
+  .community-qr-card {
+    display: none;
+  }
+}
+
 @media (max-width: 767px) {
   .community-stage {
     background-size: 42px 42px;
@@ -1027,12 +1122,11 @@ body:has(.home-deck) footer {
   }
 
   .community-lite__copy {
-    min-height: 58%;
     padding: 1.25rem;
   }
 
   .community-lite__copy h2 {
-    font-size: clamp(2.8rem, 14vw, 4.2rem);
+    font-size: clamp(2.35rem, 11vw, 3.35rem);
   }
 
   .community-lite__actions {
@@ -1046,25 +1140,21 @@ body:has(.home-deck) footer {
   }
 
   .community-lite__qr {
-    position: absolute;
-    right: 1.4rem;
-    bottom: 1.4rem;
-    width: 34%;
+    position: static;
+    width: min(48vw, 168px);
+    margin: 0 auto 1rem;
     padding: 0.55rem;
     border-radius: 1rem;
   }
 
   .community-stage__inner {
+    grid-template-rows: minmax(0, 1fr);
     gap: 0.25rem;
     width: 100%;
-    padding: 1rem 1.1rem 0.65rem;
+    padding: calc(var(--nav-clearance) + 0.35rem) 1.1rem 0.75rem;
   }
 
   .community-stage__header {
-    font-size: 0.5rem;
-  }
-
-  .community-stage__header > p {
     display: none;
   }
 
@@ -1083,23 +1173,26 @@ body:has(.home-deck) footer {
 
   .community-pass__depth,
   .community-pass {
-    top: 3%;
-    width: 91%;
-    height: 58%;
+    top: 0;
+    width: 100%;
+    height: 100%;
     border-radius: 1.35rem;
   }
 
-  .community-pass__depth--far {
-    transform: translate3d(14px, 16px, -24px);
-  }
-
-  .community-pass__depth--near {
-    transform: translate3d(7px, 8px, -12px);
+  .community-pass__depth {
+    display: none;
   }
 
   .community-pass__content {
-    padding: 1rem;
+    padding: 0.9rem;
     transform: none;
+  }
+
+  .community-pass__body {
+    grid-template-columns: 1fr;
+    align-content: center;
+    gap: 0.9rem;
+    padding-bottom: 3.35rem;
   }
 
   .community-pass__brand {
@@ -1122,8 +1215,7 @@ body:has(.home-deck) footer {
   }
 
   .community-pass__copy {
-    max-width: 84%;
-    margin-bottom: 5.25rem;
+    min-width: 0;
   }
 
   .community-pass__copy p {
@@ -1132,19 +1224,19 @@ body:has(.home-deck) footer {
   }
 
   .community-pass__copy h2 {
-    font-size: clamp(2.2rem, 10.4vw, 2.8rem);
+    font-size: clamp(2rem, 10vw, 2.65rem);
+    line-height: 0.84;
   }
 
   .community-pass__actions-layer {
-    bottom: 1rem;
-    left: 1rem;
-    width: 58%;
+    right: 0.9rem;
+    bottom: 0.9rem;
+    left: 0.9rem;
+    width: auto;
   }
 
   .community-pass__actions {
-    flex-direction: column;
-    gap: 0.3rem;
-    min-height: 70px;
+    gap: 0.4rem;
   }
 
   .community-pass__join,
@@ -1161,28 +1253,26 @@ body:has(.home-deck) footer {
     height: 0.72rem;
   }
 
-  .community-qr-card {
-    top: 46%;
-    right: 7%;
-    width: min(38%, 148px);
-    padding: 0.45rem;
+  .community-pass__qr {
+    justify-self: center;
+    width: min(58vw, 180px);
+    padding: 0.4rem;
     border-radius: 1.05rem;
-    transform: rotateZ(2deg);
   }
 
-  .community-qr-card__header {
+  .community-pass__qr-header {
     gap: 0.3rem;
     padding: 0.1rem 0.15rem 0.4rem;
     font-size: 0.34rem;
     letter-spacing: 0.06em;
   }
 
-  .community-qr-card__header svg {
+  .community-pass__qr-header svg {
     width: 0.7rem;
     height: 0.7rem;
   }
 
-  .community-qr-card__image {
+  .community-pass__qr-image {
     border-radius: 0.7rem;
   }
 

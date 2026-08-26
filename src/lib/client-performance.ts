@@ -8,6 +8,30 @@ type NavigatorWithHints = Navigator & {
   deviceMemory?: number;
 };
 
+const canvasReleaseTimers = new WeakMap<
+  HTMLCanvasElement,
+  ReturnType<typeof setTimeout>
+>();
+
+export function cancelDeferredCanvasRelease(canvas: HTMLCanvasElement) {
+  const timer = canvasReleaseTimers.get(canvas);
+  if (timer === undefined) return;
+  globalThis.clearTimeout(timer);
+  canvasReleaseTimers.delete(canvas);
+}
+
+export function scheduleDeferredCanvasRelease(
+  canvas: HTMLCanvasElement,
+  release: () => void,
+) {
+  cancelDeferredCanvasRelease(canvas);
+  const timer = globalThis.setTimeout(() => {
+    canvasReleaseTimers.delete(canvas);
+    release();
+  }, 400);
+  canvasReleaseTimers.set(canvas, timer);
+}
+
 export function shouldReduceEffects() {
   if (typeof window === "undefined") return true;
   const navigatorWithHints = navigator as NavigatorWithHints;
@@ -45,6 +69,18 @@ export function supportsWebGL2() {
   } catch {
     return false;
   }
+}
+
+/**
+ * Keep large, full-viewport effects inside a predictable pixel budget while
+ * still allowing small decorative canvases to render at high density.
+ */
+export function getAdaptiveCanvasDpr(width: number, height: number, maximum = 2) {
+  if (typeof window === "undefined") return 1;
+  const nativeDpr = Math.min(window.devicePixelRatio || 1, maximum);
+  const area = Math.max(width, 1) * Math.max(height, 1);
+  const areaLimit = area >= 1_000_000 ? 1.25 : area >= 500_000 ? 1.5 : maximum;
+  return Math.max(1, Math.min(nativeDpr, areaLimit));
 }
 
 export function subscribeToPerformanceHints(callback: () => void) {

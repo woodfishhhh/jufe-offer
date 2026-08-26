@@ -325,6 +325,10 @@ OpenClaw 不使用管理员用户名或密码，也不能直接访问 SQLite。�
 - `AUTO_PUBLISH`：OpenClaw 已完成来源核实并确认可以直接发布。服务端先保存完整 Candidate，再在同一事务中创建 Resource 并把 Candidate 标为 `APPROVED`。
 - `REVIEW_REQUIRED`：信息仍有疑问或风险，只写入 `PENDING`，等待管理员在 `/resources` 审核。
 
+服务端不会只信任 `AUTO_PUBLISH` 标志。自动发布还必须同时满足：分类允许自动发布、
+来源是 `OFFICIAL_API` 或 `OFFICIAL_PAGE`、`officialUrl` 与来源同域，并保留非空
+原始证据。学习资料、GitHub、开源资源、工具和求职经验只能进入人工审核。
+
 接口不会删除或修改已有正式资源。相同 `dedupeKey` 不会建立第二条候选；自动发布时如发现正式资源中已有相同 URL，会把候选标记为 `DUPLICATE`。已进入
 `APPROVED`、`REJECTED` 或 `DUPLICATE` 的候选不能被 OpenClaw 覆盖回待审核状态。
 
@@ -333,12 +337,20 @@ OpenClaw 不使用管理员用户名或密码，也不能直接访问 SQLite。�
 - `INTERNSHIP`
 - `CAMPUS_RECRUITMENT`
 - `REFERRAL`
+- `COMPETITION`
 - `HACKATHON`
+- `OPEN_SOURCE_RESOURCE`
 - `TRAINING`
+- `PROGRAMMING_LEARNING`
+- `LEARNING_PATH`
+- `PROGRAMMING_TOOL`
 - `CAREER_EXPERIENCE`
 - `RESUME_INTERVIEW`
+- `CAMPUS_RESOURCE`
+- `OTHER_RESOURCE`
 
-`OPEN_SOURCE_PROJECT` 不受支持。开源项目只接受江财成员人工投稿，不通过这个接口自动提交。
+`REFERRAL` 和 `OTHER_RESOURCE` 只接受管理员人工提交。公开开源活动与资源可以使用
+`OPEN_SOURCE_RESOURCE` 自动发现，但必须人工审核，也不得推断江财成员关系。
 
 允许的 `sourceType`：`RSSHUB`、`OFFICIAL_API`、`OFFICIAL_PAGE`、
 `WEB_MONITOR`、`MANUAL_RESEARCH`。
@@ -385,3 +397,6 @@ POST /api/admin/candidates/:id/duplicate
 
 拒绝和标记重复可提交可选的 `reviewNote`，最多 300 个字。候选审核后不会删除，
 原始来源与证据会继续保留。
+
+正式资源的 `origin` 会返回 `SEED`、`MANUAL` 或 `OPENCLAW`。资源卡片和分类
+目录据此显示“初始整理”“人工整理”或“自动采集”，分类总数不再被误解为自动抓取数量。

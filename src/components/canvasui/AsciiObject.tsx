@@ -6,6 +6,10 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import {
+  cancelDeferredCanvasRelease,
+  scheduleDeferredCanvasRelease,
+} from "@/lib/client-performance";
 
 export interface AsciiObjectOptions {
   /** URL of the asset to display: GLB/glTF, SVG, PNG, JPEG, WebP, or GIF. Object URLs from a file input work too. The format is sniffed from the bytes, not the extension. */
@@ -874,6 +878,7 @@ export function createAsciiObject(
   options: AsciiObjectOptions = {},
 ): AsciiObjectInstance | null {
   const { canvas } = elements;
+  cancelDeferredCanvasRelease(canvas);
   const config: Required<AsciiObjectOptions> = { ...DEFAULTS, ...options };
 
   let renderer: THREE.WebGLRenderer;
@@ -1424,6 +1429,11 @@ export function createAsciiObject(
       postGeometry.dispose();
       postMaterial.dispose();
       renderer.dispose();
+      scheduleDeferredCanvasRelease(canvas, () => {
+        renderer.forceContextLoss();
+        canvas.width = 1;
+        canvas.height = 1;
+      });
     },
   };
 }

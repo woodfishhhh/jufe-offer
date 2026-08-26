@@ -7,8 +7,9 @@ import {
   useState,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import { GitPullRequest } from "lucide-react";
+import { FriendLinkApplication } from "@/components/friend-link-application";
 import type { FriendLink } from "@/data/friends";
+import { getAdaptiveCanvasDpr } from "@/lib/client-performance";
 import styles from "./friend-network.module.css";
 
 const CONFIG = {
@@ -298,6 +299,8 @@ export function FriendNetwork({ friends }: { friends: readonly FriendLink[] }) {
     let frame = 0;
     let lastFrame = performance.now();
     let cardIndexOnScreen = -1;
+    let cardWidth = 232;
+    let cardHeight = 120;
     let cardCloseStartedAt = 0;
     let drag: DragState | null = null;
     let pinch: PinchState | null = null;
@@ -316,6 +319,9 @@ export function FriendNetwork({ friends }: { friends: readonly FriendLink[] }) {
     };
     let gridX = new Float32Array(0);
     let gridY = new Float32Array(0);
+    let worldTransform = "";
+    let zoomText = "";
+    const activePlanets = new Array(planets.length).fill(false) as boolean[];
 
     const keepViewInRange = () => {
       const extent = maxRadius * view.scale;
@@ -328,7 +334,7 @@ export function FriendNetwork({ friends }: { friends: readonly FriendLink[] }) {
       const previousCenterY = centerY;
       width = stage.clientWidth;
       height = stage.clientHeight;
-      dpr = Math.min(window.devicePixelRatio || 1, CONFIG.maxDpr);
+      dpr = getAdaptiveCanvasDpr(width, height, CONFIG.maxDpr);
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
       canvas.style.width = `${width}px`;
@@ -615,8 +621,6 @@ export function FriendNetwork({ friends }: { friends: readonly FriendLink[] }) {
       const planet = planets[activeIndex];
       const x = view.x + planet.worldX * view.scale;
       const y = view.y + planet.worldY * view.scale;
-      const cardWidth = card.offsetWidth || 232;
-      const cardHeight = card.offsetHeight || 120;
       const margin = 16;
       const offset = 22 + (planet.size * view.scale) / 2;
       const desiredX = x < width / 2 ? x + offset : x - offset - cardWidth;
@@ -629,10 +633,24 @@ export function FriendNetwork({ friends }: { friends: readonly FriendLink[] }) {
     };
 
     const animate = (now: number) => {
+      frame = 0;
+      if (document.hidden || !stageVisible) return;
+      if (now - lastFrame < 1000 / 30) {
+        scheduleFrame();
+        return;
+      }
       const delta = Math.min((now - lastFrame) / 1000, CONFIG.maxDelta);
       lastFrame = now;
-      world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
-      if (zoomRef.current) zoomRef.current.textContent = `×${view.scale.toFixed(2)}`;
+      const nextWorldTransform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
+      if (nextWorldTransform !== worldTransform) {
+        worldTransform = nextWorldTransform;
+        world.style.transform = nextWorldTransform;
+      }
+      const nextZoomText = `×${view.scale.toFixed(2)}`;
+      if (zoomRef.current && nextZoomText !== zoomText) {
+        zoomText = nextZoomText;
+        zoomRef.current.textContent = nextZoomText;
+      }
       updateStar(now, delta);
       planets.forEach((planet) => updateOrbit(planet, delta));
 
@@ -655,13 +673,22 @@ export function FriendNetwork({ friends }: { friends: readonly FriendLink[] }) {
         planet.scale += ((active ? CONFIG.hoverScale : 1) - planet.scale) * easing;
         const element = planetRefs.current[index];
         if (element) {
-          element.classList.toggle(styles.active, active);
+          if (activePlanets[index] !== active) {
+            activePlanets[index] = active;
+            element.classList.toggle(styles.active, active);
+          }
           element.style.transform = `translate(${planet.worldX}px, ${planet.worldY}px) translate(-50%, -50%) scale(${planet.scale.toFixed(3)})`;
         }
       });
 
       draw();
       showCard(now);
+      scheduleFrame();
+    };
+
+    let stageVisible = true;
+    const scheduleFrame = () => {
+      if (frame || document.hidden || !stageVisible) return;
       frame = requestAnimationFrame(animate);
     };
 
@@ -790,6 +817,31 @@ export function FriendNetwork({ friends }: { friends: readonly FriendLink[] }) {
     const onMotionChange = () => {
       reducedMotion = motionQuery.matches;
     };
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+        return;
+      }
+      lastFrame = performance.now();
+      scheduleFrame();
+    };
+    const visibilityObserver = new IntersectionObserver((entries) => {
+      stageVisible = entries[entries.length - 1]?.isIntersecting ?? true;
+      if (!stageVisible) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+        return;
+      }
+      lastFrame = performance.now();
+      scheduleFrame();
+    });
+    const cardObserver = new ResizeObserver((entries) => {
+      const box = entries[entries.length - 1]?.contentRect;
+      if (!box) return;
+      cardWidth = box.width || cardWidth;
+      cardHeight = box.height || cardHeight;
+    });
 
     resize();
     stage.addEventListener("pointerdown", onPointerDown);
@@ -800,8 +852,11 @@ export function FriendNetwork({ friends }: { friends: readonly FriendLink[] }) {
     stage.addEventListener("wheel", onWheel, { passive: false });
     stage.addEventListener("dblclick", resetView);
     window.addEventListener("resize", resize);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     motionQuery.addEventListener("change", onMotionChange);
-    frame = requestAnimationFrame(animate);
+    visibilityObserver.observe(stage);
+    cardObserver.observe(card);
+    scheduleFrame();
 
     return () => {
       cancelAnimationFrame(frame);
@@ -813,7 +868,12 @@ export function FriendNetwork({ friends }: { friends: readonly FriendLink[] }) {
       stage.removeEventListener("wheel", onWheel);
       stage.removeEventListener("dblclick", resetView);
       window.removeEventListener("resize", resize);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       motionQuery.removeEventListener("change", onMotionChange);
+      visibilityObserver.disconnect();
+      cardObserver.disconnect();
+      canvas.width = 1;
+      canvas.height = 1;
     };
   }, [planets]);
 
@@ -879,19 +939,10 @@ export function FriendNetwork({ friends }: { friends: readonly FriendLink[] }) {
         </div>
       </div>
 
-      <a
-        href="https://github.com/woodfishhhh/jufe-offer/issues/new?template=friend-link.yml"
-        target="_blank"
-        rel="noopener noreferrer"
+      <FriendLinkApplication
         className={`site-header__chip ${styles.submitLink}`}
-        data-stage-control
-        aria-label="前往 GitHub 提交友链申请"
-      >
-        <span className={styles.submitLinkIcon} aria-hidden="true">
-          <GitPullRequest size={16} strokeWidth={2} />
-        </span>
-        <span>提交友链</span>
-      </a>
+        iconClassName={styles.submitLinkIcon}
+      />
 
       <div className={styles.legend} aria-hidden="true">
         <span>

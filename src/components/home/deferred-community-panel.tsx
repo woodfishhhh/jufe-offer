@@ -5,7 +5,7 @@ import { ArrowUpRight, Copy } from "lucide-react";
 import { FlowingWaves } from "@/components/flowing-waves";
 import { ResilientImage } from "@/components/resilient-image";
 import { site } from "@/data/site";
-import { shouldReduceEffects } from "@/lib/client-performance";
+import { scheduleIdle, shouldReduceEffects } from "@/lib/client-performance";
 
 function CommunityLitePanel({
   containerRef,
@@ -60,6 +60,7 @@ function CommunityLitePanel({
               alt={`${site.qqGroupName}群二维码`}
               width={400}
               height={400}
+              loading="eager"
               sizes="(max-width: 767px) 132px, 220px"
             />
           </div>
@@ -75,8 +76,7 @@ export function DeferredCommunityPanel() {
   const [fallback, setFallback] = useState(false);
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container || fallback || panel) return;
+    if (fallback || panel) return;
     let cancelled = false;
 
     const load = () => {
@@ -93,25 +93,10 @@ export function DeferredCommunityPanel() {
         });
     };
 
-    if (typeof IntersectionObserver === "undefined") {
-      load();
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry?.isIntersecting) return;
-        observer.disconnect();
-        load();
-      },
-      { rootMargin: "35% 0px", threshold: 0.01 },
-    );
-    observer.observe(container);
+    const cancelIdle = scheduleIdle(load, 900);
     return () => {
       cancelled = true;
-      observer.disconnect();
+      cancelIdle();
     };
   }, [fallback, panel]);
 

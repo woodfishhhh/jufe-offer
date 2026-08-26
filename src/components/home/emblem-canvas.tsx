@@ -48,7 +48,10 @@ export function EmblemCanvas({ className }: { className?: string }) {
       {Renderer && mode !== "fallback" ? (
         <Renderer
           src="/models/jc.glb"
-          className="h-full w-full"
+          className={cn(
+            "h-full w-full transition-opacity duration-250 ease-[var(--ease-out)]",
+            mode === "active" ? "opacity-100" : "opacity-0",
+          )}
           cellSize={5.6}
           cellAspect={0.58}
           contrast={1.35}
@@ -77,22 +80,41 @@ export function EmblemCanvas({ className }: { className?: string }) {
 
       <div
         className={cn(
-          "pointer-events-none absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_50%_45%,rgba(255,255,255,0.12),transparent_48%)] transition-opacity duration-500",
-          mode === "active" ? "opacity-0" : "opacity-100",
+          "pointer-events-none absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_50%_45%,rgba(255,255,255,0.1),transparent_48%)] transition-opacity duration-250 ease-[var(--ease-out)]",
+          mode === "loading" ? "opacity-100" : "opacity-0",
         )}
         aria-hidden="true"
       >
-        <span className="relative size-[min(52vw,56%)] max-h-[68%] max-w-[68%] overflow-hidden rounded-full border border-white/15 bg-white shadow-[0_30px_90px_-36px_rgba(255,255,255,0.42)]">
-          <ResilientImage
-            src={site.logoSrc}
-            alt=""
-            fill
-            sizes="(max-width: 1023px) 52vw, 28vw"
-            fetchPriority="high"
-            className="object-cover"
-          />
+        <span className="grid size-[min(38vw,42%)] max-h-[52%] max-w-[52%] place-items-center rounded-full border border-white/12 bg-white/[0.025] text-center shadow-[0_0_70px_rgba(255,255,255,0.06)]">
+          <span>
+            <span className="block font-mono text-[10px] tracking-[0.28em] text-white/42 uppercase">
+              JUFE OFFER
+            </span>
+            <span className="mt-2 block font-mono text-[9px] tracking-[0.18em] text-white/24 uppercase">
+              3D Object / Loading
+            </span>
+          </span>
         </span>
       </div>
+
+      {mode === "fallback" ? (
+        <div
+          className="pointer-events-none absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_50%_45%,rgba(255,255,255,0.12),transparent_48%)]"
+          aria-hidden="true"
+        >
+          <span className="relative size-[min(52vw,56%)] max-h-[68%] max-w-[68%] overflow-hidden rounded-full border border-white/15 bg-white shadow-[0_30px_90px_-36px_rgba(255,255,255,0.42)]">
+            <ResilientImage
+              src={site.logoSrc}
+              alt=""
+              fill
+              sizes="(max-width: 1023px) 52vw, 28vw"
+              loading="lazy"
+              fetchPriority="low"
+              className="object-cover"
+            />
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }

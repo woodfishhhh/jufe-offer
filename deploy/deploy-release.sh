@@ -354,6 +354,8 @@ restore_database() {
     fi
     cp -p "$backup_file" "$restore_path" || return 1
     mv -f "$restore_path" "$DB_PATH" || return 1
+    sudo /usr/bin/chown jufe-offer:jufe-offer "$DB_PATH" || return 1
+    sudo /usr/bin/chmod 0640 "$DB_PATH" || return 1
     integrity_result="$(sqlite3 "$DB_PATH" 'PRAGMA integrity_check;')" || return 1
     [[ "$integrity_result" == ok ]] || return 1
   else

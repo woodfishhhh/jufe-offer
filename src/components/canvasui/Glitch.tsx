@@ -17,32 +17,26 @@ import {
   subscribeToPerformanceHints,
 } from "@/lib/client-performance";
 
-export type RippleTrigger = "click" | "hover" | "none";
-
-export interface RippleOptions {
-  /** Height of the waves (0 to 3). */
-  amplitude?: number;
-  /** How fast the rings travel outward. 1 is normal speed. */
-  speed?: number;
-  /** Distance between wave crests in CSS pixels. */
-  wavelength?: number;
-  /** Number of crests in each wave train (1 to 8). */
-  rings?: number;
-  /** How quickly the waves lose energy (higher dies faster). */
-  decay?: number;
-  /** How strongly the waves bend the page content, in CSS pixels. */
-  refraction?: number;
-  /** Chromatic dispersion splitting colors along the wave slopes (0 to 1). */
-  dispersion?: number;
-  /** Intensity of the light glints on the wave crests (0 to 2). */
-  shine?: number;
-  /** What spawns ripples. "click" on press, "hover" also leaves a wake while moving, "none" only ambient. */
-  trigger?: RippleTrigger;
-  /** Seconds between ambient ripples at random positions. 0 disables them. */
+export interface GlitchOptions {
+  /** Overall strength of the glitch (0 to 2). */
+  intensity?: number;
+  /** Seconds between glitch bursts. 0 keeps the glitch running constantly. */
   interval?: number;
+  /** How long each burst lasts in seconds. */
+  duration?: number;
+  /** Number of horizontal slices the tear snaps to. Lower is chunkier. */
+  slices?: number;
+  /** How far the torn slices shift sideways, in CSS pixels. */
+  shift?: number;
+  /** Chromatic RGB split during bursts, in CSS pixels. */
+  rgbShift?: number;
+  /** Amount of corrupted block artifacts during bursts (0 to 1). */
+  blocks?: number;
+  /** Analog noise and scanline flicker during bursts (0 to 1). */
+  noise?: number;
 }
 
-export interface RippleElements {
+export interface GlitchElements {
   /** Canvas with layoutsubtree that hosts the HTML content. */
   source: HTMLCanvasElement;
   /** The element inside the source canvas that gets captured. */
@@ -51,32 +45,31 @@ export interface RippleElements {
   output: HTMLCanvasElement;
 }
 
-export interface RippleInstance {
+export interface GlitchInstance {
   /** Update effect options live. */
-  setOptions: (options: RippleOptions) => void;
-  /** Spawn a ripple at a position in CSS pixels relative to the element. */
-  splash: (x: number, y: number, strength?: number) => void;
+  setOptions: (options: GlitchOptions) => void;
+  /** Fire a glitch burst right now. */
+  burst: () => void;
+  /** Keep the page readable without firing glitch bursts during layout transitions. */
+  suspend: () => void;
+  /** Resume the default burst timeline after a layout transition. */
+  resume: () => void;
   /** Re-read canvas size. Call when the element is resized. */
   resize: () => void;
   /** Stop the loop and release all GPU resources. */
   destroy: () => void;
 }
 
-const DEFAULTS: Required<RippleOptions> = {
-  amplitude: 0.5,
-  speed: 0.65,
-  wavelength: 80,
-  rings: 2,
-  decay: 1,
-  refraction: 100,
-  dispersion: 0.5,
-  shine: 0.5,
-  trigger: "click",
-  interval: 0,
+const DEFAULTS: Required<GlitchOptions> = {
+  intensity: 1,
+  interval: 3,
+  duration: 0.4,
+  slices: 24,
+  shift: 30,
+  rgbShift: 4,
+  blocks: 0.5,
+  noise: 0.35,
 };
-
-const MAX_RIPPLES = 12;
-const BASE_SPEED = 340;
 
 type PaintableCanvas = HTMLCanvasElement & {
   onpaint?: (() => void) | null;
@@ -102,72 +95,74 @@ in vec2 vUv;
 out vec4 outColor;
 uniform sampler2D uContent;
 uniform vec2 uResolution;
-uniform vec4 uRipples[12];
-uniform int uCount;
-uniform float uSpeed;
-uniform float uWavelength;
-uniform float uWidth;
-uniform float uDecay;
-uniform float uRefraction;
-uniform float uDispersion;
-uniform float uShine;
-uniform float uHasContent;
+uniform float uSeed;
+uniform float uAmp;
+uniform float uSlices;
+uniform float uShift;
+uniform float uRgbShift;
+uniform float uBlocks;
+uniform float uNoise;
 uniform float uMaxX;
+
+float hash12 (vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
 
 vec4 page (vec2 p) {
   p.x = clamp(p.x, 0.0005, uMaxX - 0.0005);
   p.y = clamp(p.y, 0.0005, 0.9995);
-  return texture(uContent, p);
+  return texture(uContent, vec2(p.x, 1.0 - p.y));
 }
 
 void main () {
-  vec2 pUv = vec2(vUv.x, 1.0 - vUv.y);
-  vec2 frag = pUv * uResolution;
-
-  vec2 grad = vec2(0.0);
-  float k = 6.28318530718 / uWavelength;
-  float w2 = uWidth * uWidth;
-
-  for (int i = 0; i < 12; i++) {
-    if (i >= uCount) break;
-    vec4 rp = uRipples[i];
-    vec2 dv = frag - rp.xy;
-    float r = length(dv);
-    float front = uSpeed * rp.z;
-    float s = r - front;
-    float env = exp(-s * s / w2) * exp(-uDecay * rp.z) * rp.w;
-    env *= smoothstep(0.0, 0.08, rp.z);
-    env *= inversesqrt(1.0 + front / max(uWavelength, 1.0) * 0.2);
-    if (env < 0.0015) continue;
-    float dh = (k * cos(s * k) - 2.0 * s / w2 * sin(s * k)) * env;
-    grad += dv / max(r, 1.0) * dh * uWavelength * 0.16;
-  }
-
-  float g = dot(grad, vec2(-0.55, -0.8));
-  float glint = pow(clamp(g * 2.2, 0.0, 1.0), 2.0) * uShine;
-  float shade = pow(clamp(-g * 1.6, 0.0, 1.0), 2.0) * uShine * 0.3;
-
-  if (uHasContent < 0.5) {
-    float a = clamp(glint * 0.9 + shade * 0.5, 0.0, 0.85);
-    outColor = vec4(vec3(glint * 0.9), a);
+  vec2 uv = vUv;
+  if (uv.x > uMaxX) {
+    outColor = vec4(0.0);
     return;
   }
 
-  vec2 offs = grad * uRefraction / uResolution;
-  vec3 col;
-  if (uDispersion > 0.001) {
-    float d = uDispersion * 0.35;
-    col = vec3(
-      page(pUv + offs * (1.0 + d)).r,
-      page(pUv + offs).g,
-      page(pUv + offs * (1.0 - d)).b
-    );
-  } else {
-    col = page(pUv + offs).rgb;
+  float e = uAmp;
+  vec2 guv = uv;
+
+  if (e > 0.001) {
+    float band = floor(uv.y * uSlices);
+    float pick = hash12(vec2(band, uSeed));
+    float tear = step(1.0 - 0.3 * min(e, 1.0), pick);
+    float dir = hash12(vec2(band, uSeed + 13.0)) * 2.0 - 1.0;
+    guv.x += tear * dir * e * uShift / uResolution.x;
+
+    float sub = floor(uv.y * uSlices * 7.0);
+    float micro = hash12(vec2(sub, uSeed + 29.0));
+    guv.x += (micro - 0.5) * e * uNoise * 3.0 / uResolution.x;
+
+    vec2 cell = floor(guv * vec2(10.0, uSlices * 0.5));
+    float br = hash12(cell + uSeed * 0.0173);
+    if (br > 1.0 - 0.14 * uBlocks * min(e, 1.0)) {
+      vec2 jump = vec2(
+        hash12(cell + uSeed + 3.1) - 0.5,
+        hash12(cell + uSeed + 7.7) - 0.5
+      );
+      guv += jump * vec2(0.08, 0.02) * e;
+    }
   }
-  col += glint;
-  col *= 1.0 - shade;
-  outColor = vec4(col, 1.0);
+
+  float split = uRgbShift * e / uResolution.x;
+  vec4 c = page(guv);
+  float r = page(guv + vec2(split, 0.0)).r;
+  float b = page(guv - vec2(split, 0.0)).b;
+  vec4 col = vec4(r, c.g, b, c.a);
+
+  if (e > 0.001 && uNoise > 0.001) {
+    float grain = hash12(vUv * uResolution + uSeed * 5.3) - 0.5;
+    float row = floor(vUv.y * uResolution.y);
+    float flicker = hash12(vec2(row, uSeed + 41.0));
+    float lines = step(0.985 - 0.01 * uNoise * e, flicker);
+    col.rgb += (grain * 0.22 + lines * 0.35) * uNoise * min(e, 1.0) * col.a;
+  }
+
+  outColor = vec4(clamp(col.rgb, 0.0, 1.0) * col.a, col.a);
 }`;
 
 export function supportsHtmlInCanvas(): boolean {
@@ -181,10 +176,10 @@ export function supportsHtmlInCanvas(): boolean {
   );
 }
 
-export function createRipple(
-  elements: RippleElements,
-  options: RippleOptions = {},
-): RippleInstance | null {
+export function createGlitch(
+  elements: GlitchElements,
+  options: GlitchOptions = {},
+): GlitchInstance | null {
   const config = { ...DEFAULTS, ...options };
   const { source, content, output } = elements;
   cancelDeferredCanvasRelease(output);
@@ -225,7 +220,7 @@ export function createRipple(
     gl!.shaderSource(shader, text);
     gl!.compileShader(shader);
     if (!gl!.getShaderParameter(shader, gl!.COMPILE_STATUS)) {
-      console.error("Ripple shader error:", gl!.getShaderInfoLog(shader));
+      console.error("Glitch shader error:", gl!.getShaderInfoLog(shader));
     }
     return shader;
   }
@@ -241,7 +236,7 @@ export function createRipple(
   const count = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
   for (let i = 0; i < count; i++) {
     const info = gl.getActiveUniform(program, i)!;
-    uniforms[info.name.replace("[0]", "")] = gl.getUniformLocation(program, info.name)!;
+    uniforms[info.name] = gl.getUniformLocation(program, info.name)!;
   }
 
   const quad = gl.createBuffer();
@@ -289,11 +284,9 @@ export function createRipple(
     if (htmlInCanvas) {
       const cssWidth = Math.max(1, Math.round(source.clientWidth));
       const cssHeight = Math.max(1, Math.round(source.clientHeight));
-      const sourceWidth = Math.max(1, Math.round(cssWidth * dpr));
-      const sourceHeight = Math.max(1, Math.round(cssHeight * dpr));
-      if (source.width !== sourceWidth || source.height !== sourceHeight) {
-        source.width = sourceWidth;
-        source.height = sourceHeight;
+      if (source.width !== cssWidth * dpr || source.height !== cssHeight * dpr) {
+        source.width = cssWidth * dpr;
+        source.height = cssHeight * dpr;
       }
       paintable.requestPaint!();
     }
@@ -308,74 +301,56 @@ export function createRipple(
     gl!.texImage2D(gl!.TEXTURE_2D, 0, gl!.RGBA, gl!.RGBA, gl!.UNSIGNED_BYTE, source);
   }
 
-  type Wave = { x: number; y: number; age: number; amp: number };
-  const ripples: Wave[] = [];
-  const rippleData = new Float32Array(MAX_RIPPLES * 4);
+  let time = 0;
+  let burstAt = 0.6;
+  let burstSeed = 1;
+  let envelope = 0;
 
-  function splash(x: number, y: number, strength = 1) {
-    if (reducedMotion) return;
-    if (ripples.length >= MAX_RIPPLES) ripples.shift();
-    ripples.push({ x, y, age: 0, amp: strength });
-    start();
+  function advanceTimeline(delta: number) {
+    time += delta;
+    if (config.interval <= 0) {
+      envelope = 1;
+      return;
+    }
+    const sinceBurst = time - burstAt;
+    const duration = Math.max(config.duration, 0.05);
+    if (sinceBurst >= 0 && sinceBurst < duration) {
+      const tail = 1 - Math.pow(sinceBurst / duration, 2);
+      envelope = tail * (0.7 + 0.3 * hash(burstSeed + Math.floor(time * 24)));
+    } else {
+      envelope = 0;
+      if (sinceBurst >= duration) {
+        burstAt = time + Math.max(config.interval, 0.3) * (0.75 + 0.5 * Math.random());
+        burstSeed = Math.floor(Math.random() * 1000);
+      }
+    }
   }
 
-  function pruneRipples(delta: number) {
-    const diag = Math.hypot(output.clientWidth, output.clientHeight);
-    const speedPx = BASE_SPEED * Math.max(config.speed, 0.05);
-    const width = config.wavelength * Math.max(config.rings, 1) * 0.5;
-    for (let i = ripples.length - 1; i >= 0; i--) {
-      const rp = ripples[i];
-      rp.age += delta;
-      const gone =
-        rp.age * speedPx > diag + width * 3 ||
-        Math.exp(-Math.max(config.decay, 0.05) * rp.age) * rp.amp < 0.012;
-      if (gone) ripples.splice(i, 1);
-    }
+  function hash(n: number) {
+    const s = Math.sin(n * 127.1) * 43758.5453;
+    return s - Math.floor(s);
   }
 
   function render() {
     uploadContent();
     const dpr = output.width / Math.max(output.clientWidth, 1);
+    const amp = envelope * Math.max(config.intensity, 0);
     gl!.useProgram(program);
     gl!.activeTexture(gl!.TEXTURE0);
     gl!.bindTexture(gl!.TEXTURE_2D, contentTexture);
     gl!.uniform1i(uniforms.uContent, 0);
     gl!.uniform2f(uniforms.uResolution, output.width, output.height);
-    for (let i = 0; i < MAX_RIPPLES; i++) {
-      const rp = ripples[i];
-      rippleData[i * 4] = rp ? rp.x * dpr : 0;
-      rippleData[i * 4 + 1] = rp ? rp.y * dpr : 0;
-      rippleData[i * 4 + 2] = rp ? rp.age : 0;
-      rippleData[i * 4 + 3] = rp ? rp.amp * Math.max(config.amplitude, 0) : 0;
-    }
-    gl!.uniform4fv(uniforms.uRipples, rippleData);
-    gl!.uniform1i(uniforms.uCount, ripples.length);
-    gl!.uniform1f(uniforms.uSpeed, BASE_SPEED * Math.max(config.speed, 0.05) * dpr);
-    gl!.uniform1f(uniforms.uWavelength, Math.max(config.wavelength, 4) * dpr);
-    gl!.uniform1f(
-      uniforms.uWidth,
-      Math.max(config.wavelength, 4) * Math.max(config.rings, 1) * 0.5 * dpr,
-    );
-    gl!.uniform1f(uniforms.uDecay, Math.max(config.decay, 0.05));
-    gl!.uniform1f(uniforms.uRefraction, Math.max(config.refraction, 0) * dpr);
-    gl!.uniform1f(uniforms.uDispersion, Math.max(config.dispersion, 0));
-    gl!.uniform1f(uniforms.uShine, Math.max(config.shine, 0));
-    gl!.uniform1f(uniforms.uHasContent, htmlInCanvas ? 1 : 0);
+    gl!.uniform1f(uniforms.uSeed, Math.floor(time * 24) + burstSeed);
+    gl!.uniform1f(uniforms.uAmp, amp);
+    gl!.uniform1f(uniforms.uSlices, Math.max(config.slices, 3));
+    gl!.uniform1f(uniforms.uShift, Math.max(config.shift, 0) * dpr);
+    gl!.uniform1f(uniforms.uRgbShift, Math.max(config.rgbShift, 0) * dpr);
+    gl!.uniform1f(uniforms.uBlocks, Math.min(Math.max(config.blocks, 0), 1));
+    gl!.uniform1f(uniforms.uNoise, Math.min(Math.max(config.noise, 0), 1));
     gl!.uniform1f(uniforms.uMaxX, contentMaxX);
     gl!.bindFramebuffer(gl!.FRAMEBUFFER, null);
     gl!.viewport(0, 0, output.width, output.height);
     gl!.drawArrays(gl!.TRIANGLE_STRIP, 0, 4);
-  }
-
-  function renderIdle() {
-    gl!.bindFramebuffer(gl!.FRAMEBUFFER, null);
-    gl!.viewport(0, 0, output.width, output.height);
-    if (htmlInCanvas) {
-      render();
-    } else {
-      gl!.clearColor(0, 0, 0, 0);
-      gl!.clear(gl!.COLOR_BUFFER_BIT);
-    }
   }
 
   let raf = 0;
@@ -383,55 +358,32 @@ export function createRipple(
   let destroyed = false;
   let running = false;
   let visible = true;
-  let pageVisible = !document.hidden;
-  let ambientTimer = 0;
+  let suspended = false;
 
   const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
   let reducedMotion = motionQuery.matches;
 
-  function spawnAmbient() {
-    const w = output.clientWidth;
-    const h = output.clientHeight;
-    if (w < 10 || h < 10) return;
-    splash(
-      w * (0.15 + Math.random() * 0.7),
-      h * (0.15 + Math.random() * 0.7),
-      0.6 + Math.random() * 0.5,
-    );
-  }
-
   function frame(now: number) {
     if (destroyed) return;
-    if (!visible || !pageVisible) {
+    if (!visible) {
       running = false;
       return;
     }
     const delta = Math.min(Math.max((now - lastTime) / 1000, 0), 1 / 30);
     lastTime = now;
-    if (!reducedMotion) {
-      pruneRipples(delta);
-      if (config.interval > 0) {
-        ambientTimer += delta;
-        if (ambientTimer >= config.interval) {
-          ambientTimer = 0;
-          spawnAmbient();
-        }
-      }
-    }
-    if (ripples.length > 0) {
-      render();
-    } else {
-      renderIdle();
-      if (!contentDirty && (config.interval <= 0 || reducedMotion)) {
-        running = false;
-        return;
-      }
+    const wasActive = envelope > 0;
+    if (!reducedMotion && !suspended) advanceTimeline(delta);
+    else envelope = 0;
+    if (envelope > 0 || wasActive || contentDirty) render();
+    if (reducedMotion && !contentDirty) {
+      running = false;
+      return;
     }
     raf = requestAnimationFrame(frame);
   }
 
   function start() {
-    if (destroyed || running || !visible || !pageVisible) return;
+    if (destroyed || running || !visible) return;
     running = true;
     lastTime = performance.now();
     raf = requestAnimationFrame(frame);
@@ -440,49 +392,11 @@ export function createRipple(
   wake = start;
   start();
 
-  function localPoint(event: PointerEvent): [number, number] {
-    const rect = output.getBoundingClientRect();
-    return [event.clientX - rect.left, event.clientY - rect.top];
-  }
-
-  let hoverX = -1e5;
-  let hoverY = -1e5;
-
-  function onPointerDown(event: PointerEvent) {
-    if (config.trigger === "none") return;
-    const [x, y] = localPoint(event);
-    splash(x, y, 1);
-  }
-
-  function onPointerMove(event: PointerEvent) {
-    if (config.trigger !== "hover") return;
-    const [x, y] = localPoint(event);
-    if (Math.hypot(x - hoverX, y - hoverY) < 56) return;
-    hoverX = x;
-    hoverY = y;
-    splash(x, y, 0.3);
-  }
-
-  content.addEventListener("pointerdown", onPointerDown, { passive: true });
-  content.addEventListener("pointermove", onPointerMove, { passive: true });
-
   function onMotionChange() {
     reducedMotion = motionQuery.matches;
-    if (reducedMotion) ripples.length = 0;
     start();
   }
   motionQuery.addEventListener("change", onMotionChange);
-
-  function onVisibilityChange() {
-    pageVisible = !document.hidden;
-    if (!pageVisible) {
-      cancelAnimationFrame(raf);
-      running = false;
-      return;
-    }
-    start();
-  }
-  document.addEventListener("visibilitychange", onVisibilityChange);
 
   const observer = new ResizeObserver(() => {
     syncCanvasSize();
@@ -501,14 +415,29 @@ export function createRipple(
     setOptions(next) {
       if (
         !Object.entries(next).some(
-          ([key, value]) => config[key as keyof RippleOptions] !== value,
+          ([key, value]) => config[key as keyof GlitchOptions] !== value,
         )
       )
         return;
       Object.assign(config, next);
       start();
     },
-    splash,
+    burst() {
+      if (suspended) return;
+      burstAt = time;
+      burstSeed = Math.floor(Math.random() * 1000);
+      start();
+    },
+    suspend() {
+      suspended = true;
+      envelope = 0;
+      start();
+    },
+    resume() {
+      suspended = false;
+      burstAt = time + Math.max(config.interval, 0.3);
+      start();
+    },
     resize() {
       syncCanvasSize();
       start();
@@ -516,12 +445,9 @@ export function createRipple(
     destroy() {
       destroyed = true;
       cancelAnimationFrame(raf);
-      content.removeEventListener("pointerdown", onPointerDown);
-      content.removeEventListener("pointermove", onPointerMove);
       observer.disconnect();
       intersection.disconnect();
       motionQuery.removeEventListener("change", onMotionChange);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
       gl!.deleteTexture(contentTexture);
       gl!.deleteProgram(program);
       gl!.deleteShader(vertexShader);
@@ -539,27 +465,27 @@ export function createRipple(
   };
 }
 
-export interface RippleProps extends RippleOptions {
+export interface GlitchProps extends GlitchOptions {
   children: ReactNode;
   className?: string;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
   contentStyle?: CSSProperties;
 }
 
 const emptySubscribe = () => () => {};
 
-export function Ripple({
+export function Glitch({
   children,
   className,
   style,
   contentStyle,
   ...options
-}: RippleProps) {
+}: GlitchProps) {
   const pathname = usePathname();
   const sourceRef = useRef<HTMLCanvasElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const outputRef = useRef<HTMLCanvasElement>(null);
-  const instanceRef = useRef<RippleInstance | null>(null);
+  const instanceRef = useRef<GlitchInstance | null>(null);
   const [initialOptions] = useState(options);
   const [failed, setFailed] = useState(false);
   const [effectsAllowed, setEffectsAllowed] = useState(false);
@@ -569,12 +495,7 @@ export function Ripple({
     supportsHtmlInCanvas,
     () => false,
   );
-  const native =
-    pathname !== "/friends" &&
-    pathname !== "/resources" &&
-    supported &&
-    effectsAllowed &&
-    !failed;
+  const native = pathname === "/" && supported && effectsAllowed && !failed;
 
   useEffect(() => {
     const update = () => setEffectsAllowed(!shouldAvoidFullPageCanvas());
@@ -588,8 +509,8 @@ export function Ripple({
     const content = contentRef.current;
     const output = outputRef.current;
     if (!source || !content || !output) return;
-    instanceRef.current = createRipple({ source, content, output }, initialOptions);
-    if (native && !instanceRef.current) setFailed(true);
+    instanceRef.current = createGlitch({ source, content, output }, initialOptions);
+    if (!instanceRef.current) setFailed(true);
     return () => {
       instanceRef.current?.destroy();
       instanceRef.current = null;
@@ -597,31 +518,34 @@ export function Ripple({
   }, [initialOptions, native]);
 
   useEffect(() => {
-    if (!native) return;
-    const output = outputRef.current;
-    if (!output) return;
-    const handleContextLost = (event: Event) => {
-      event.preventDefault();
-      setFailed(true);
-    };
-    output.addEventListener("webglcontextlost", handleContextLost);
-    return () => output.removeEventListener("webglcontextlost", handleContextLost);
-  }, [native]);
-
-  useEffect(() => {
     instanceRef.current?.setOptions(options);
   });
 
+  useEffect(() => {
+    const suspend = () => instanceRef.current?.suspend();
+    const resume = () => instanceRef.current?.resume();
+    document.addEventListener("home-deck-transition-start", suspend);
+    document.addEventListener("home-deck-transition-end", resume);
+    return () => {
+      document.removeEventListener("home-deck-transition-start", suspend);
+      document.removeEventListener("home-deck-transition-end", resume);
+    };
+  }, []);
+
   return (
     <div className={className} style={{ position: "relative", ...style }}>
-      {native ? (
-        <canvas
-          ref={sourceRef}
-          // @ts-expect-error experimental html-in-canvas attribute
-          layoutsubtree="true"
-          suppressHydrationWarning
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
-        >
+      <canvas
+        ref={sourceRef}
+        // @ts-expect-error experimental html-in-canvas attribute
+        layoutsubtree="true"
+        suppressHydrationWarning
+        style={
+          native
+            ? { position: "absolute", inset: 0, width: "100%", height: "100%" }
+            : { display: "none" }
+        }
+      >
+        {native ? (
           <div
             ref={contentRef}
             style={{
@@ -634,8 +558,8 @@ export function Ripple({
           >
             {children}
           </div>
-        </canvas>
-      ) : null}
+        ) : null}
+      </canvas>
       {!native ? (
         <div
           ref={contentRef}
@@ -666,5 +590,4 @@ export function Ripple({
     </div>
   );
 }
-
-export default Ripple;
+export default Glitch;

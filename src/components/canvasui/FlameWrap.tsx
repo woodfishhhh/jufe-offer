@@ -1,6 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import {
+  cancelDeferredCanvasRelease,
+  getAdaptiveCanvasDpr,
+  scheduleIdle,
+  scheduleDeferredCanvasRelease,
+  supportsWebGL2,
+} from "@/lib/client-performance";
 
 export interface FlameWrapOptions {
   /** Flame color as [r, g, b] in 0-1 range. */
@@ -422,6 +429,7 @@ export function createFlameWrap(
 ): FlameWrapInstance | null {
   const config = { ...DEFAULTS, ...options };
   const { source, content, output } = elements;
+  cancelDeferredCanvasRelease(output);
 
   const gl = output.getContext("webgl2", {
     alpha: true,
@@ -510,7 +518,7 @@ export function createFlameWrap(
   let dpr = 1;
 
   function syncCanvasSize() {
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    dpr = getAdaptiveCanvasDpr(output.clientWidth, output.clientHeight);
     const width = Math.max(1, Math.round(output.clientWidth * dpr));
     const height = Math.max(1, Math.round(output.clientHeight * dpr));
     if (output.width !== width || output.height !== height) {
@@ -529,9 +537,11 @@ export function createFlameWrap(
     if (htmlInCanvas) {
       const cssWidth = Math.max(1, Math.round(source.clientWidth));
       const cssHeight = Math.max(1, Math.round(source.clientHeight));
-      if (source.width !== cssWidth * dpr || source.height !== cssHeight * dpr) {
-        source.width = cssWidth * dpr;
-        source.height = cssHeight * dpr;
+      const sourceWidth = Math.max(1, Math.round(cssWidth * dpr));
+      const sourceHeight = Math.max(1, Math.round(cssHeight * dpr));
+      if (source.width !== sourceWidth || source.height !== sourceHeight) {
+        source.width = sourceWidth;
+        source.height = sourceHeight;
       }
       paintable.requestPaint!();
     }
@@ -592,17 +602,31 @@ export function createFlameWrap(
   let lastTime = performance.now();
   let destroyed = false;
   let running = false;
-  let visible = true;
+  const initialBounds = output.getBoundingClientRect();
+  let visible =
+    initialBounds.bottom > 0 &&
+    initialBounds.right > 0 &&
+    initialBounds.top < window.innerHeight &&
+    initialBounds.left < window.innerWidth;
+  let pageVisible = !document.hidden;
+  let lastRenderTime = 0;
+  const deckViewport = output.closest<HTMLElement>(".home-deck__viewport");
+  let deckTransitioning = deckViewport?.dataset.transitioning === "true";
 
   const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
   let reducedMotion = motionQuery.matches;
 
   function frame(now: number) {
     if (destroyed) return;
-    if (!visible) {
+    if (!visible || !pageVisible) {
       running = false;
       return;
     }
+    if (!reducedMotion && now - lastRenderTime < 1000 / 30) {
+      raf = requestAnimationFrame(frame);
+      return;
+    }
+    lastRenderTime = now;
     const delta = Math.min((now - lastTime) / 1000, 1 / 30);
     lastTime = now;
     if (!reducedMotion) time += delta * config.speed;
@@ -615,7 +639,7 @@ export function createFlameWrap(
   }
 
   function start() {
-    if (destroyed || running || !visible) return;
+    if (destroyed || running || !visible || !pageVisible || deckTransitioning) return;
     running = true;
     lastTime = performance.now();
     raf = requestAnimationFrame(frame);
@@ -629,6 +653,30 @@ export function createFlameWrap(
     start();
   }
   motionQuery.addEventListener("change", onMotionChange);
+
+  function onVisibilityChange() {
+    pageVisible = !document.hidden;
+    if (!pageVisible) {
+      cancelAnimationFrame(raf);
+      running = false;
+      return;
+    }
+    start();
+  }
+  document.addEventListener("visibilitychange", onVisibilityChange);
+
+  function onDeckTransitionStart() {
+    deckTransitioning = true;
+    cancelAnimationFrame(raf);
+    running = false;
+  }
+
+  function onDeckTransitionEnd() {
+    deckTransitioning = false;
+    start();
+  }
+  document.addEventListener("home-deck-transition-start", onDeckTransitionStart);
+  document.addEventListener("home-deck-transition-end", onDeckTransitionEnd);
 
   const observer = new ResizeObserver(() => {
     syncCanvasSize();
@@ -673,12 +721,22 @@ export function createFlameWrap(
       observer.disconnect();
       intersection.disconnect();
       motionQuery.removeEventListener("change", onMotionChange);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      document.removeEventListener("home-deck-transition-start", onDeckTransitionStart);
+      document.removeEventListener("home-deck-transition-end", onDeckTransitionEnd);
       gl!.deleteTexture(contentTexture);
       gl!.deleteProgram(program);
       gl!.deleteShader(vertexShader);
       gl!.deleteShader(fragmentShader);
       gl!.deleteBuffer(quad);
       if (htmlInCanvas) paintable.onpaint = null;
+      scheduleDeferredCanvasRelease(output, () => {
+        gl!.getExtension("WEBGL_lose_context")?.loseContext();
+        source.width = 1;
+        source.height = 1;
+        output.width = 1;
+        output.height = 1;
+      });
     },
   };
 }
@@ -692,96 +750,117 @@ export interface FlameWrapProps extends FlameWrapOptions {
 const emptySubscribe = () => () => {};
 
 export function FlameWrap({ children, className, style, ...options }: FlameWrapProps) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const sourceRef = useRef<HTMLCanvasElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const outputRef = useRef<HTMLCanvasElement>(null);
   const instanceRef = useRef<FlameWrapInstance | null>(null);
   const [initialOptions] = useState(options);
   const [failed, setFailed] = useState(false);
+  const [effectReady, setEffectReady] = useState(false);
 
-  const supported = useSyncExternalStore(
+  const htmlCaptureSupported = useSyncExternalStore(
     emptySubscribe,
     supportsHtmlInCanvas,
     () => false,
   );
-  const native = supported && !failed;
+  const webglSupported = useSyncExternalStore(
+    emptySubscribe,
+    supportsWebGL2,
+    () => false,
+  );
+  const effectActive = webglSupported && effectReady && !failed;
 
   const reach = Math.round(Math.max(options.height ?? 170, 24) * 1.5) + 40;
   const glow = Math.round(Math.max(options.spread ?? 8, 8) * 3) + 16;
 
   useEffect(() => {
+    if (!webglSupported || failed) return;
+    return scheduleIdle(() => setEffectReady(true), 700);
+  }, [failed, webglSupported]);
+
+  useEffect(() => {
+    if (!effectActive) return;
     const source = sourceRef.current;
     const content = contentRef.current;
     const output = outputRef.current;
     if (!source || !content || !output) return;
     instanceRef.current = createFlameWrap({ source, content, output }, initialOptions);
-    if (native && !instanceRef.current) setFailed(true);
+    if (!instanceRef.current) setFailed(true);
     return () => {
       instanceRef.current?.destroy();
       instanceRef.current = null;
     };
-  }, [initialOptions, native]);
+  }, [effectActive, initialOptions]);
 
   useEffect(() => {
     instanceRef.current?.setOptions(options);
   });
 
   return (
-    <div className={className} style={{ position: "relative", ...style }}>
+    <div
+      ref={wrapperRef}
+      className={className}
+      style={{ position: "relative", ...style }}
+    >
       <div
-        ref={native ? undefined : contentRef}
+        ref={htmlCaptureSupported ? undefined : contentRef}
         style={{ position: "relative", width: "100%" }}
       >
         {children}
       </div>
-      <canvas
-        ref={sourceRef}
-        // @ts-expect-error experimental html-in-canvas attribute
-        layoutsubtree="true"
-        suppressHydrationWarning
-        style={
-          native
-            ? {
-                position: "absolute",
-                inset: 0,
+      {effectActive ? (
+        <canvas
+          ref={sourceRef}
+          // @ts-expect-error experimental html-in-canvas attribute
+          layoutsubtree="true"
+          suppressHydrationWarning
+          style={
+            htmlCaptureSupported
+              ? {
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "100%",
+                  pointerEvents: "none",
+                }
+              : { display: "none" }
+          }
+        >
+          {htmlCaptureSupported ? (
+            <div
+              ref={contentRef}
+              aria-hidden="true"
+              inert
+              style={{
+                position: "relative",
                 width: "100%",
                 height: "100%",
+                overflow: "hidden",
                 pointerEvents: "none",
-              }
-            : { display: "none" }
-        }
-      >
-        {native ? (
-          <div
-            ref={contentRef}
-            aria-hidden="true"
-            inert
-            style={{
-              position: "relative",
-              width: "100%",
-              height: "100%",
-              overflow: "hidden",
-              pointerEvents: "none",
-            }}
-          >
-            {children}
-          </div>
-        ) : null}
-      </canvas>
-      <canvas
-        ref={outputRef}
-        aria-hidden
-        style={{
-          position: "absolute",
-          top: -reach,
-          right: -glow,
-          bottom: -glow,
-          left: -glow,
-          width: `calc(100% + ${glow * 2}px)`,
-          height: `calc(100% + ${reach + glow}px)`,
-          pointerEvents: "none",
-        }}
-      />
+              }}
+            >
+              {children}
+            </div>
+          ) : null}
+        </canvas>
+      ) : null}
+      {effectActive ? (
+        <canvas
+          ref={outputRef}
+          aria-hidden
+          style={{
+            position: "absolute",
+            top: -reach,
+            right: -glow,
+            bottom: -glow,
+            left: -glow,
+            width: `calc(100% + ${glow * 2}px)`,
+            height: `calc(100% + ${reach + glow}px)`,
+            pointerEvents: "none",
+          }}
+        />
+      ) : null}
     </div>
   );
 }

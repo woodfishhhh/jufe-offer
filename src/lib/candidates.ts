@@ -1,6 +1,12 @@
 import "server-only";
 
-import { CandidateStatus, Prisma, type Candidate, type Resource } from "@prisma/client";
+import {
+  CandidateStatus,
+  Prisma,
+  ResourceOrigin,
+  type Candidate,
+  type Resource,
+} from "@prisma/client";
 import {
   CANDIDATE_RESOURCE_CATEGORY,
   type CandidateCategoryValue,
@@ -100,6 +106,7 @@ function resourceData(candidate: Candidate) {
     category: CANDIDATE_RESOURCE_CATEGORY[candidate.category as CandidateCategoryValue],
     tags: candidate.tags,
     isFeatured: false,
+    origin: ResourceOrigin.OPENCLAW,
     startsAt: null,
     deadlineAt: candidate.deadline,
   };

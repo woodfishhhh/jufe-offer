@@ -1,20 +1,26 @@
 "use client";
 
 import { Children, useEffect, useRef, useState, type ReactNode } from "react";
-import { shouldReduceEffects } from "@/lib/client-performance";
+import { scheduleIdle, shouldReduceEffects } from "@/lib/client-performance";
 import { cn } from "@/lib/utils";
 
 const WHEEL_THRESHOLD = 42;
 const TOUCH_THRESHOLD = 56;
 const SLIDE_DURATION = 0.92;
 const EDGE_EPSILON = 1;
+const TRANSITION_START_EVENT = "home-deck-transition-start";
+const TRANSITION_END_EVENT = "home-deck-transition-end";
 
 type GsapApi = typeof import("gsap").gsap;
 
 let gsapPromise: Promise<GsapApi> | null = null;
+let loadedGsap: GsapApi | null = null;
 
 function loadGsap() {
-  gsapPromise ??= import("gsap").then((module) => module.gsap);
+  gsapPromise ??= import("gsap").then((module) => {
+    loadedGsap = module.gsap;
+    return loadedGsap;
+  });
   return gsapPromise;
 }
 
@@ -104,8 +110,10 @@ export function HomeDeck({
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 
     function finishTransition(token: number) {
-      if (token !== transitionToken || destroyed) return;
+      if (token !== transitionToken || destroyed || !locked) return;
       locked = false;
+      deckViewport.dataset.transitioning = "false";
+      document.dispatchEvent(new Event(TRANSITION_END_EVENT));
     }
 
     function animateWithBrowser(targetY: number, token: number) {
@@ -144,6 +152,8 @@ export function HomeDeck({
       currentIndex = Math.max(0, Math.min(slides.length - 1, index));
       setActiveIndex(currentIndex);
       locked = true;
+      deckViewport.dataset.transitioning = "true";
+      document.dispatchEvent(new Event(TRANSITION_START_EVENT));
       const token = ++transitionToken;
       const targetY = -deckViewport.clientHeight * currentIndex;
       if (unlockTimer !== null) window.clearTimeout(unlockTimer);
@@ -155,20 +165,18 @@ export function HomeDeck({
         finishTransition(token);
       } else if (shouldReduceEffects()) {
         animateWithBrowser(targetY, token);
+      } else if (loadedGsap) {
+        activeGsap = loadedGsap;
+        loadedGsap.to(deckTrack, {
+          y: targetY,
+          duration: SLIDE_DURATION,
+          ease: "power3.inOut",
+          overwrite: true,
+          onComplete: () => finishTransition(token),
+        });
       } else {
-        void loadGsap()
-          .then((gsap) => {
-            if (destroyed || token !== transitionToken) return;
-            activeGsap = gsap;
-            gsap.to(deckTrack, {
-              y: targetY,
-              duration: SLIDE_DURATION,
-              ease: "power3.inOut",
-              overwrite: true,
-              onComplete: () => finishTransition(token),
-            });
-          })
-          .catch(() => animateWithBrowser(targetY, token));
+        void loadGsap().catch(() => {});
+        animateWithBrowser(targetY, token);
       }
       unlockTimer = window.setTimeout(
         () => {
@@ -261,6 +269,9 @@ export function HomeDeck({
     }
 
     const resizeObserver = new ResizeObserver(handleResize);
+    const cancelMotionWarmup = scheduleIdle(() => {
+      if (!shouldReduceEffects()) void loadGsap().catch(() => {});
+    }, 700);
     resizeObserver.observe(deckViewport);
     deckViewport.addEventListener("wheel", handleWheel, { passive: false });
     deckViewport.addEventListener("pointermove", warmMotionEngine, {
@@ -277,12 +288,14 @@ export function HomeDeck({
       destroyed = true;
       transitionToken += 1;
       resizeObserver.disconnect();
+      cancelMotionWarmup();
       deckViewport.removeEventListener("wheel", handleWheel);
       deckViewport.removeEventListener("pointermove", warmMotionEngine);
       deckViewport.removeEventListener("click", handleDeckClick);
       deckViewport.removeEventListener("touchstart", handleTouchStart);
       deckViewport.removeEventListener("touchend", handleTouchEnd);
       window.removeEventListener("keydown", handleKeydown);
+      deckViewport.dataset.transitioning = "false";
       if (unlockTimer !== null) window.clearTimeout(unlockTimer);
       activeAnimation?.cancel();
       activeGsap?.killTweensOf(deckTrack);

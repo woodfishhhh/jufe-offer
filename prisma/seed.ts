@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, ResourceOrigin } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -137,6 +137,7 @@ async function main() {
         category: resource.category,
         tags: JSON.stringify(resource.tags),
         isFeatured: resource.isFeatured,
+        origin: ResourceOrigin.SEED,
       },
     });
   }

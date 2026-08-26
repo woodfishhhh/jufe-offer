@@ -377,8 +377,8 @@
 
 .submitLink {
   position: absolute;
-  top: 50%;
-  left: 5vw;
+  top: var(--nav-clearance);
+  left: 0.9rem;
   z-index: 9;
   gap: 0.62rem;
   min-height: var(--nav-island-height);
@@ -386,8 +386,8 @@
   color: rgb(17 17 17 / 0.68);
   font-size: 0.72rem;
   font-weight: 650;
+  font-family: inherit;
   text-decoration: none;
-  transform: translateY(-50%);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   cursor: pointer;
@@ -497,13 +497,15 @@
     left: 1rem;
   }
 
-  .submitLink {
-    left: 1rem;
-  }
-
   .legend {
     gap: 10px;
     font-size: 8px;
+  }
+}
+
+@media (max-width: 639px) {
+  .submitLink {
+    left: 0.45rem;
   }
 }
 

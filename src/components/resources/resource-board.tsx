@@ -1,16 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import dynamic from "next/dynamic";
+import { usePathname, useSearchParams } from "next/navigation";
 import { MasonryGrid } from "@egjs/react-grid";
 import { Columns3, List, Menu, Search, Star, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth-provider";
 import { Canvas as CanvasEffect } from "@/components/canvasui/Canvas";
-import { CandidateReviewPanel } from "@/components/resources/candidate-review-panel";
-import { DeleteResourceDialog } from "@/components/resources/delete-resource-dialog";
 import { ResourceCard, type ResourceView } from "@/components/resources/resource-card";
-import { ResourceFormDialog } from "@/components/resources/resource-form-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -23,22 +28,66 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CATEGORY_VALUES } from "@/data/categories";
+import {
+  getCachedResourceList,
+  invalidateResourceListCache,
+  requestResourceList,
+} from "@/lib/client-resources";
 import type { ResourceDto } from "@/lib/resources";
 import type { ResourceInput } from "@/schemas/resource";
 import { cn, readApiError } from "@/lib/utils";
+
+const CandidateReviewPanel = dynamic(
+  () =>
+    import("@/components/resources/candidate-review-panel").then(
+      (module) => module.CandidateReviewPanel,
+    ),
+  { ssr: false },
+);
+const DeleteResourceDialog = dynamic(
+  () =>
+    import("@/components/resources/delete-resource-dialog").then(
+      (module) => module.DeleteResourceDialog,
+    ),
+  { ssr: false },
+);
+const ResourceFormDialog = dynamic(
+  () =>
+    import("@/components/resources/resource-form-dialog").then(
+      (module) => module.ResourceFormDialog,
+    ),
+  { ssr: false },
+);
 
 type SortValue = "newest" | "title";
 type DirectoryStats = {
   total: number;
   featured: number;
   categories: Record<string, number>;
+  automatedCategories: Record<string, number>;
 };
 
 const EMPTY_DIRECTORY_STATS: DirectoryStats = {
   total: 0,
   featured: 0,
   categories: {},
+  automatedCategories: {},
 };
+
+function directoryStatsFrom(resources: ResourceDto[]): DirectoryStats {
+  const categories: Record<string, number> = {};
+  const automatedCategories: Record<string, number> = {};
+  let featured = 0;
+  for (const resource of resources) {
+    categories[resource.category] = (categories[resource.category] ?? 0) + 1;
+    if (resource.origin === "OPENCLAW") {
+      automatedCategories[resource.category] =
+        (automatedCategories[resource.category] ?? 0) + 1;
+    }
+    if (resource.isFeatured) featured += 1;
+  }
+  return { total: resources.length, featured, categories, automatedCategories };
+}
 
 const VIEW_OPTIONS: {
   value: ResourceView;
@@ -103,6 +152,46 @@ function SkeletonResults({ view }: { view: ResourceView }) {
         />
       ))}
     </div>
+  );
+}
+
+function MasonryResults({
+  resources,
+  authenticated,
+  columns,
+  onEdit,
+  onDelete,
+}: {
+  resources: ResourceDto[];
+  authenticated: boolean;
+  columns: 1 | 3;
+  onEdit: (resource: ResourceDto) => void;
+  onDelete: (resource: ResourceDto) => void;
+}) {
+  const [ready, setReady] = useState(false);
+
+  return (
+    <MasonryGrid
+      className="py-5"
+      style={{ visibility: ready ? "visible" : "hidden" }}
+      column={columns}
+      gap={16}
+      align="stretch"
+      useResizeObserver
+      observeChildren
+      onRenderComplete={() => setReady(true)}
+    >
+      {resources.map((resource) => (
+        <ResourceCard
+          key={resource.id}
+          resource={resource}
+          view="masonry"
+          authenticated={authenticated}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
+      ))}
+    </MasonryGrid>
   );
 }
 
@@ -189,15 +278,30 @@ function DirectoryNavigation({
                 )}
               >
                 <span>{item}</span>
-                <span
-                  className={cn(
-                    "min-w-7 rounded-full px-2 py-0.5 text-center font-mono text-xs font-bold tabular-nums",
-                    active
-                      ? "bg-background/15 text-background"
-                      : "bg-muted text-foreground/75",
-                  )}
-                >
-                  {stats.categories[item] ?? 0}
+                <span className="flex items-center gap-1.5">
+                  {(stats.automatedCategories[item] ?? 0) > 0 ? (
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                        active
+                          ? "bg-background/15 text-background"
+                          : "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
+                      )}
+                      title="由 OpenClaw 自动采集并发布"
+                    >
+                      自动 {stats.automatedCategories[item]}
+                    </span>
+                  ) : null}
+                  <span
+                    className={cn(
+                      "min-w-7 rounded-full px-2 py-0.5 text-center font-mono text-xs font-bold tabular-nums",
+                      active
+                        ? "bg-background/15 text-background"
+                        : "bg-muted text-foreground/75",
+                    )}
+                  >
+                    {stats.categories[item] ?? 0}
+                  </span>
                 </span>
               </button>
             );
@@ -210,7 +314,6 @@ function DirectoryNavigation({
 
 export function ResourceBoard() {
   const { authenticated } = useAuth();
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [resources, setResources] = useState<ResourceDto[]>([]);
@@ -250,18 +353,7 @@ export function ResourceBoard() {
 
   const loadDirectoryStats = useCallback(async () => {
     try {
-      const response = await fetch("/api/resources", { cache: "no-store" });
-      if (!response.ok) return;
-      const payload = (await response.json()) as { data: ResourceDto[] };
-      const categories: Record<string, number> = {};
-      for (const resource of payload.data) {
-        categories[resource.category] = (categories[resource.category] ?? 0) + 1;
-      }
-      setDirectoryStats({
-        total: payload.data.length,
-        featured: payload.data.filter((resource) => resource.isFeatured).length,
-        categories,
-      });
+      setDirectoryStats(directoryStatsFrom(await requestResourceList("")));
     } catch {
       // The resource list keeps its own error state; stale counts are safer than flicker.
     }
@@ -272,22 +364,16 @@ export function ResourceBoard() {
       if (showLoading) setLoading(true);
       setLoadError("");
       try {
-        const response = await fetch(
-          `/api/resources${queryString ? `?${queryString}` : ""}`,
-          { cache: "no-store" },
+        const data = await requestResourceList(queryString);
+        startTransition(() => {
+          setResources(data);
+          setLoading(false);
+        });
+      } catch (error) {
+        setLoadError(
+          error instanceof Error ? error.message : "资源列表暂时无法加载，请稍后重试。",
         );
-        if (!response.ok) {
-          const apiError = await readApiError(response);
-          setLoadError(apiError.message);
-          setResources([]);
-          return;
-        }
-        const payload = (await response.json()) as { data: ResourceDto[] };
-        setResources(payload.data);
-      } catch {
-        setLoadError("资源列表暂时无法加载，请稍后重试。");
         setResources([]);
-      } finally {
         setLoading(false);
       }
     },
@@ -297,29 +383,31 @@ export function ResourceBoard() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      setLoading(true);
+      const cached = getCachedResourceList(queryString);
+      if (cached) {
+        startTransition(() => {
+          setResources(cached);
+          setLoading(false);
+        });
+      } else {
+        setLoading(true);
+      }
       setLoadError("");
       try {
-        const response = await fetch(
-          `/api/resources${queryString ? `?${queryString}` : ""}`,
-          { cache: "no-store" },
-        );
+        const data = await requestResourceList(queryString);
         if (cancelled) return;
-        if (!response.ok) {
-          const apiError = await readApiError(response);
-          setLoadError(apiError.message);
-          setResources([]);
-          return;
-        }
-        const payload = (await response.json()) as { data: ResourceDto[] };
-        setResources(payload.data);
-      } catch {
+        startTransition(() => {
+          setResources(data);
+          setLoading(false);
+        });
+      } catch (error) {
         if (!cancelled) {
-          setLoadError("资源列表暂时无法加载，请稍后重试。");
+          setLoadError(
+            error instanceof Error ? error.message : "资源列表暂时无法加载，请稍后重试。",
+          );
           setResources([]);
+          setLoading(false);
         }
-      } finally {
-        if (!cancelled) setLoading(false);
       }
     }
     void load();
@@ -341,7 +429,7 @@ export function ResourceBoard() {
 
   function navigateParams(params: URLSearchParams) {
     const href = params.toString() ? `${pathname}?${params.toString()}` : pathname;
-    router.push(href, { scroll: false });
+    window.history.pushState(null, "", href);
   }
 
   function updateParams(next: Record<string, string | null>) {
@@ -367,6 +455,13 @@ export function ResourceBoard() {
     navigateParams(params);
   }
 
+  const editResource = useCallback((item: ResourceDto) => {
+    setEditing(item);
+    setFormError("");
+    setFieldErrors(undefined);
+    setFormOpen(true);
+  }, []);
+
   async function submitResource(input: ResourceInput) {
     setSubmitting(true);
     setFormError("");
@@ -389,6 +484,7 @@ export function ResourceBoard() {
       toast.success(editing ? "资源已更新。" : "资源已新增。");
       setFormOpen(false);
       setEditing(null);
+      invalidateResourceListCache();
       await Promise.all([loadResources(), loadDirectoryStats()]);
     } catch {
       setFormError("保存失败，请稍后重试。");
@@ -410,6 +506,7 @@ export function ResourceBoard() {
       }
       toast.success(`已删除「${deleting.title}」。`);
       setDeleting(null);
+      invalidateResourceListCache();
       await Promise.all([loadResources(), loadDirectoryStats()]);
     } catch {
       setDeleteError("删除失败，请稍后重试。");
@@ -560,6 +657,7 @@ export function ResourceBoard() {
                     <div className="border-border flex flex-wrap items-center gap-2 border-l pl-2">
                       <CandidateReviewPanel
                         onResourceApproved={async () => {
+                          invalidateResourceListCache();
                           await Promise.all([loadResources(), loadDirectoryStats()]);
                         }}
                       />
@@ -634,42 +732,20 @@ export function ResourceBoard() {
                         resource={resource}
                         view={view}
                         authenticated={authenticated}
-                        onEdit={(item) => {
-                          setEditing(item);
-                          setFormError("");
-                          setFieldErrors(undefined);
-                          setFormOpen(true);
-                        }}
+                        onEdit={editResource}
                         onDelete={setDeleting}
                       />
                     ))}
                   </div>
                 ) : (
-                  <MasonryGrid
-                    key={useThreeMasonryColumns ? "three-columns" : "one-column"}
-                    className="py-5"
-                    column={useThreeMasonryColumns ? 3 : 1}
-                    gap={16}
-                    align="stretch"
-                    useResizeObserver
-                    observeChildren
-                  >
-                    {resources.map((resource) => (
-                      <ResourceCard
-                        key={resource.id}
-                        resource={resource}
-                        view="masonry"
-                        authenticated={authenticated}
-                        onEdit={(item) => {
-                          setEditing(item);
-                          setFormError("");
-                          setFieldErrors(undefined);
-                          setFormOpen(true);
-                        }}
-                        onDelete={setDeleting}
-                      />
-                    ))}
-                  </MasonryGrid>
+                  <MasonryResults
+                    key={`${queryString}:${useThreeMasonryColumns ? "three" : "one"}`}
+                    resources={resources}
+                    authenticated={authenticated}
+                    columns={useThreeMasonryColumns ? 3 : 1}
+                    onEdit={editResource}
+                    onDelete={setDeleting}
+                  />
                 )}
               </div>
             </main>
@@ -709,13 +785,15 @@ export function ResourceBoard() {
               onSubmit={submitResource}
             />
           ) : null}
-          <DeleteResourceDialog
-            resource={deleting}
-            submitting={submitting}
-            error={deleteError}
-            onClose={() => setDeleting(null)}
-            onConfirm={confirmDelete}
-          />
+          {deleting ? (
+            <DeleteResourceDialog
+              resource={deleting}
+              submitting={submitting}
+              error={deleteError}
+              onClose={() => setDeleting(null)}
+              onConfirm={confirmDelete}
+            />
+          ) : null}
         </div>
       </div>
     </CanvasEffect>
