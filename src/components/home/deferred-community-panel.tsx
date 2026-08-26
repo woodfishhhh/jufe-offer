@@ -57,7 +57,6 @@ function CommunityLitePanel({
           <div className="community-lite__qr">
             <ResilientImage
               src={site.qqGroupQrSrc}
-              fallbackSrc={site.qqGroupQrFallbackSrc}
               alt={`${site.qqGroupName}群二维码`}
               width={400}
               height={400}

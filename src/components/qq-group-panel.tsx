@@ -96,7 +96,6 @@ export function QqGroupPanel() {
           <span className="community-pass__logo">
             <ResilientImage
               src={site.logoSrc}
-              fallbackSrc={site.logoFallbackSrc}
               alt=""
               width={60}
               height={60}
@@ -203,7 +202,6 @@ export function QqGroupPanel() {
                     <div className="community-qr-card__image">
                       <ResilientImage
                         src={site.qqGroupQrSrc}
-                        fallbackSrc={site.qqGroupQrFallbackSrc}
                         alt={`${site.qqGroupName}群二维码`}
                         width={400}
                         height={400}
@@ -229,7 +227,6 @@ export function QqGroupPanel() {
                     <div className="community-qr-card__image">
                       <ResilientImage
                         src={site.qqGroupQrSrc}
-                        fallbackSrc={site.qqGroupQrFallbackSrc}
                         alt={`${site.qqGroupName}群二维码`}
                         width={400}
                         height={400}

@@ -85,7 +85,6 @@ export function EmblemCanvas({ className }: { className?: string }) {
         <span className="relative size-[min(52vw,56%)] max-h-[68%] max-w-[68%] overflow-hidden rounded-full border border-white/15 bg-white shadow-[0_30px_90px_-36px_rgba(255,255,255,0.42)]">
           <ResilientImage
             src={site.logoSrc}
-            fallbackSrc={site.logoFallbackSrc}
             alt=""
             fill
             sizes="(max-width: 1023px) 52vw, 28vw"

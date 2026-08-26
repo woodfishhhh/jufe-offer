@@ -15,7 +15,6 @@ export function SiteLogoMark({ className }: { className?: string }) {
     >
       <ResilientImage
         src={site.logoSrc}
-        fallbackSrc={site.logoFallbackSrc}
         alt=""
         width={72}
         height={72}

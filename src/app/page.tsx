@@ -74,7 +74,7 @@ export default async function HomePage() {
 
   return (
     <HomeDeck className="bg-background text-foreground">
-      <section className="border-border relative overflow-hidden border-b lg:h-[calc(100svh-4rem)] lg:min-h-0">
+      <section className="border-border relative overflow-hidden border-b lg:h-full lg:min-h-0">
         <div
           className="pointer-events-none absolute inset-0 overflow-hidden"
           aria-hidden="true"
@@ -85,7 +85,7 @@ export default async function HomePage() {
         <FlowingWaves className="opacity-85" />
 
         <div className="relative grid h-full min-h-0 w-full grid-rows-[58%_42%] gap-0 lg:grid-cols-2 lg:grid-rows-1 lg:items-stretch">
-          <ScrollReveal className="relative z-10 mx-auto flex min-h-0 w-full max-w-[760px] flex-col justify-center px-5 py-6 sm:px-8 sm:py-10 lg:mx-0 lg:max-w-none lg:px-16 lg:py-24 xl:px-24">
+          <ScrollReveal className="relative z-10 mx-auto flex min-h-0 w-full max-w-[760px] flex-col justify-center px-5 pt-20 pb-6 sm:px-8 sm:pt-24 sm:pb-10 lg:mx-0 lg:max-w-none lg:px-16 lg:py-24 xl:px-24">
             <p className="text-muted-foreground text-xs font-medium tracking-[0.18em] uppercase">
               JUFE / Student resource index
             </p>
@@ -120,16 +120,15 @@ export default async function HomePage() {
           </ScrollReveal>
 
           <ScrollReveal
-            className="relative z-10 min-h-0 overflow-hidden bg-[#0a0a0a] lg:min-h-[calc(100svh-4rem)]"
+            className="relative z-10 min-h-0 overflow-hidden bg-[#0a0a0a] lg:min-h-full"
             delay={80}
           >
-            <div className="relative h-full min-h-0 lg:min-h-[calc(100svh-4rem)]">
+            <div className="relative h-full min-h-0 lg:min-h-full">
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(255,255,255,0.1),transparent_42%)]" />
               <div className="pointer-events-none absolute inset-x-6 top-6 z-10 flex items-center justify-between text-[10px] tracking-[0.18em] text-white/60 uppercase sm:inset-x-10 sm:top-10">
-                <span>School emblem</span>
                 <span>GLB / 01</span>
               </div>
-              <EmblemCanvas className="min-h-0 lg:min-h-[calc(100svh-4rem)]" />
+              <EmblemCanvas className="min-h-0 lg:min-h-full" />
               <div className="pointer-events-none absolute inset-x-6 bottom-6 z-10 flex items-end justify-between text-[10px] tracking-[0.18em] text-white/60 uppercase sm:inset-x-10 sm:bottom-10">
                 <span>Jiangxi University of Finance &amp; Economics</span>
                 <span>1923—2026</span>
@@ -139,7 +138,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="border-border relative overflow-hidden border-b lg:h-[calc(100svh-4rem)] lg:min-h-0">
+      <section className="border-border relative overflow-hidden border-b lg:h-full lg:min-h-0">
         <div className="mx-auto flex h-full max-w-[1280px] flex-col justify-center px-5 py-8 sm:px-8 sm:py-12 lg:py-14">
           <ScrollReveal className="flex flex-wrap items-end justify-between gap-3 sm:gap-5">
             <div className="flex items-end gap-5">
@@ -214,7 +213,7 @@ export default async function HomePage() {
       </section>
 
       {highlights.length > 0 ? (
-        <section className="border-border relative overflow-hidden border-b lg:h-[calc(100svh-4rem)] lg:min-h-0">
+        <section className="border-border relative overflow-hidden border-b pt-20 lg:h-full lg:min-h-0">
           <div className="mx-auto flex h-full max-w-[1280px] flex-col px-5 py-6 sm:px-8 sm:py-8 lg:py-8">
             <ScrollReveal className="flex shrink-0 flex-nowrap items-end justify-between gap-3 sm:gap-6">
               <div className="flex min-w-0 items-end gap-3 sm:gap-5">

@@ -198,7 +198,7 @@ export function ResourceBoard() {
       <div className="absolute inset-x-0 top-0 h-56 overflow-hidden" aria-hidden="true">
         <FlowingWaves className="opacity-60" />
       </div>
-      <div className="border-foreground relative flex items-end justify-between gap-4 border-b pt-16 pb-7 sm:pt-24">
+      <div className="border-foreground relative flex flex-col items-start justify-between gap-6 border-b pt-24 pb-7 sm:flex-row sm:items-end sm:pt-28">
         <div className="flex items-end gap-3">
           <div>
             <p className="text-muted-foreground font-mono text-xs tracking-[0.16em] uppercase">
@@ -232,7 +232,7 @@ export function ResourceBoard() {
         ) : null}
       </div>
 
-      <div className="border-border bg-background/88 sticky top-0 z-20 -mx-5 border-b px-5 py-3 backdrop-blur-xl sm:-mx-8 sm:px-8">
+      <div className="border-border bg-background/88 sticky top-[var(--nav-clearance)] z-20 -mx-5 border-b px-5 py-3 backdrop-blur-xl sm:-mx-8 sm:px-8">
         <form
           className="flex items-center gap-2"
           onSubmit={(event) => {

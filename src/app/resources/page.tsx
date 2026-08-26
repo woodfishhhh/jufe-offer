@@ -14,7 +14,7 @@ export default function ResourcesPage() {
       <Suspense
         fallback={
           <div
-            className="mx-auto max-w-[1280px] px-5 py-12 sm:px-8 sm:py-16"
+            className="mx-auto max-w-[1280px] px-5 pt-24 pb-12 sm:px-8 sm:pt-28 sm:pb-16"
             aria-live="polite"
           >
             <Skeleton className="h-6 w-24 rounded-full" />

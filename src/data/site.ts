@@ -10,9 +10,7 @@ export const site = {
   qqGroupNumber: "729592444",
   qqGroupJoinUrl: "https://qm.qq.com/q/Hz6xLo2qAc",
   qqGroupQrSrc: "/QQ群_compressed.png",
-  qqGroupQrFallbackSrc: "/QQ群.png",
   logoSrc: "/0b9e02d4fcddecc48d4b61e79cb26f16_compressed.png",
-  logoFallbackSrc: "/0b9e02d4fcddecc48d4b61e79cb26f16.png",
   defaultUrl: "http://localhost:3000",
 } as const;
 
