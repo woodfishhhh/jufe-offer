@@ -67,14 +67,13 @@ jobs:
             .next/standalone \
             prisma \
             package.json
-          cp deploy/deploy-release.sh dist/deploy-release.sh
 
       - name: Upload release artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: production-${{ github.sha }}
-          path: dist/
+          path: dist/jufe-offer-${{ github.sha }}.tar.gz
           archive: false
           if-no-files-found: error
           retention-days: 7
@@ -90,6 +89,9 @@ jobs:
       url: https://jufe.woodfish.site
 
     steps:
+      - name: Check out deployment script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Download release artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -115,7 +117,7 @@ jobs:
           remote="${DEPLOY_USER}@${DEPLOY_HOST}"
           scp -P "$DEPLOY_PORT" \
             "dist/jufe-offer-${GITHUB_SHA}.tar.gz" \
-            "dist/deploy-release.sh" \
+            "deploy/deploy-release.sh" \
             "$remote:/opt/jufe-offer/incoming/"
           ssh -p "$DEPLOY_PORT" "$remote" \
             "bash /opt/jufe-offer/incoming/deploy-release.sh '${GITHUB_SHA}' '/opt/jufe-offer/incoming/jufe-offer-${GITHUB_SHA}.tar.gz'"
