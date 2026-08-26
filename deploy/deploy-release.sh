@@ -12,7 +12,7 @@ readonly BACKUPS_DIR="$APP_ROOT/backups"
 readonly DB_PATH="$APP_ROOT/data/prod.db"
 readonly SWITCH_HELPER="/usr/local/sbin/jufe-offer-switch-upstream"
 readonly PUBLIC_HEALTH_URL="https://jufe.woodfish.site/api/health"
-readonly PNPM_BIN="/usr/bin/pnpm"
+readonly NPM_BIN="/usr/bin/npm"
 
 command_name="${1:-}"
 release_id="${2:-}"
@@ -289,10 +289,16 @@ ensure_prisma_tool() {
     rm -rf --one-file-system -- "$prisma_tool_staging" "$prisma_tool_dir"
     mkdir -p "$prisma_tool_staging"
     printf '{"private":true}\n' >"$prisma_tool_staging/package.json"
-    "$PNPM_BIN" \
-      --dir "$prisma_tool_staging" \
-      add --prod --save-exact "prisma@$prisma_version" \
-      --store-dir "$SHARED_DIR/pnpm-store" || return 1
+    (
+      cd "$prisma_tool_staging"
+      "$NPM_BIN" install \
+        --omit=dev \
+        --no-audit \
+        --no-fund \
+        --no-package-lock \
+        --no-save \
+        "prisma@$prisma_version"
+    ) || return 1
     mv "$prisma_tool_staging" "$prisma_tool_dir"
   fi
 

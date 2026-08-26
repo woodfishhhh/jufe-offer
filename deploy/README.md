@@ -73,7 +73,7 @@ scp \
 current_release="$(readlink -f /opt/jufe-offer/current)"
 revision="$(basename "$current_release")"
 printf 'current=%s\nrevision=%s\n' "$current_release" "$revision"
-command -v node pnpm sqlite3 rsync docker curl flock systemctl visudo
+command -v node npm sqlite3 rsync docker curl flock systemctl visudo
 test "$(readlink -f "$current_release/.next/standalone/.next/cache")" = \
   /opt/jufe-offer/shared/cache
 systemctl status jufe-offer.service --no-pager
