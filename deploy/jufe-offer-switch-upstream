@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+umask 022
+
+readonly APP_USER="jufe-offer"
+readonly SHARED_DIR="/opt/jufe-offer/shared"
+readonly ACTIVE_SLOT_FILE="$SHARED_DIR/active-slot"
+readonly NGINX_CONTAINER="blog-nginx"
+readonly NGINX_INCLUDE="/opt/blog-stack/nginx/conf.d/jufe-offer-upstream.inc"
+
+slot="${1:-}"
+case "$slot" in
+  blue) port=3020 ;;
+  green) port=3021 ;;
+  *)
+    printf 'Usage: %s {blue|green}\n' "$0" >&2
+    exit 2
+    ;;
+esac
+
+if [[ "$(id -u)" -ne 0 ]]; then
+  printf 'This helper must run as root.\n' >&2
+  exit 2
+fi
+
+if ! docker inspect "$NGINX_CONTAINER" >/dev/null 2>&1; then
+  printf 'Nginx container %s is unavailable.\n' "$NGINX_CONTAINER" >&2
+  exit 3
+fi
+
+install -d -m 0755 "$SHARED_DIR"
+temporary_include="$(mktemp "${NGINX_INCLUDE}.next.XXXXXX")"
+previous_include="$(mktemp /tmp/jufe-offer-upstream.previous.XXXXXX)"
+had_previous=false
+
+cleanup() {
+  rm -f -- "$temporary_include" "$previous_include"
+}
+trap cleanup EXIT
+
+if [[ -f "$NGINX_INCLUDE" ]]; then
+  cp -p "$NGINX_INCLUDE" "$previous_include"
+  had_previous=true
+fi
+
+restore_previous_nginx() {
+  local restore_temp
+
+  if [[ "$had_previous" != true ]]; then
+    printf 'No previous Nginx include is available for restoration.\n' >&2
+    return 1
+  fi
+
+  restore_temp="$(mktemp "${NGINX_INCLUDE}.restore.XXXXXX")"
+  cp "$previous_include" "$restore_temp"
+  chmod 0644 "$restore_temp"
+  mv -f "$restore_temp" "$NGINX_INCLUDE"
+  docker exec "$NGINX_CONTAINER" nginx -t
+  docker kill --signal HUP "$NGINX_CONTAINER" >/dev/null
+}
+
+printf 'proxy_pass http://172.18.0.1:%s;\n' "$port" >"$temporary_include"
+chmod 0644 "$temporary_include"
+mv -f "$temporary_include" "$NGINX_INCLUDE"
+
+if ! docker exec "$NGINX_CONTAINER" nginx -t; then
+  restore_previous_nginx || true
+  printf 'Candidate Nginx configuration is invalid; previous upstream restored.\n' >&2
+  exit 4
+fi
+
+if ! docker kill --signal HUP "$NGINX_CONTAINER" >/dev/null; then
+  restore_previous_nginx || true
+  printf 'Nginx graceful reload failed; previous upstream restored.\n' >&2
+  exit 5
+fi
+
+temporary_state="$(mktemp "$SHARED_DIR/.active-slot.XXXXXX")"
+printf '%s\n' "$slot" >"$temporary_state"
+chown "$APP_USER:$APP_USER" "$temporary_state"
+chmod 0644 "$temporary_state"
+if ! mv -f "$temporary_state" "$ACTIVE_SLOT_FILE"; then
+  restore_previous_nginx || true
+  printf 'Active-slot state update failed; previous upstream restored.\n' >&2
+  exit 6
+fi
+
+printf 'Nginx now proxies jufe.woodfish.site to %s:%s (%s).\n' \
+  '172.18.0.1' "$port" "$slot"

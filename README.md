@@ -273,7 +273,9 @@ Copy-Item prisma/dev.db "backups/dev-$(Get-Date -Format yyyyMMdd).db"
 
 `.github/workflows/ci-deploy.yml` 会在 Pull Request 上执行 lint、类型检查和生产构建；`main` 更新后还会自动部署到京东云。
 
-生产部署使用版本化 standalone release：构建产物上传到服务器后，脚本先备份 SQLite 并运行 migration，再通过 `/opt/jufe-offer/current` 软链接原子切换。Prisma 迁移工具按版本缓存在共享目录，不会在每次部署时重复安装整套依赖。内网和公网健康检查都通过才算成功；失败会自动恢复上一版代码和部署前数据库。
+生产部署使用 blue/green standalone release：GitHub 缓存 pnpm、`.next/cache`、ESLint 和 TypeScript 增量信息；产物通过 `rsync --checksum --link-dest` 同步到固定 staging 目录，内容未变化的文件不重复传输，并在 release 之间使用 hardlink。候选版本先在备用端口启动并通过 revision health，随后才让容器 Nginx graceful 切流。
+
+只有生产 release 和候选 release 的 Prisma migrations 不同时才进入 SQLite 流程。自动发布默认使用可恢复的 maintenance 模式；人工确认 schema 向后兼容后，才可在 workflow dispatch 中显式选择 compatible。完整架构、失败处理和一次性服务器迁移命令见 [deploy/README.md](deploy/README.md)。
 
 仓库需要配置以下 GitHub Actions Secrets：
 
@@ -283,11 +285,7 @@ Copy-Item prisma/dev.db "backups/dev-$(Get-Date -Format yyyyMMdd).db"
 - `DEPLOY_SSH_KEY`
 - `DEPLOY_KNOWN_HOSTS`
 
-服务器端部署账号只需要写入 `/opt/jufe-offer`，以及免密执行 `start`、`stop`、`restart` 三个 `jufe-offer.service` 命令。应用由非 root 用户运行，生产环境变量和数据库不会进入构建产物。
-
-首次接入已有服务器时，以 root 身份运行 `deploy/bootstrap-server.sh <当前提交 SHA> /tmp/jufe-offer.service`，把当前平铺部署转换为 release 目录。脚本会保留原 systemd 单元的 `.pre-cicd` 备份，启动检查失败时自动恢复旧单元。
-
-恢复时把备份文件复制回 `prisma/dev.db`，然后重新启动服务。
+服务器端部署账号可以写入 `/opt/jufe-offer`，并且只被授权管理 `jufe-offer@blue.service`、`jufe-offer@green.service` 和调用固定 Nginx slot helper。应用仍由非 root 用户运行，生产环境变量和数据库不会进入构建产物。
 
 ## 管理员使用方式
 

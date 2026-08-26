@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "eslint .",
+    "lint": "eslint . --cache --cache-location .cache/eslint/.eslintcache --cache-strategy content",
     "typecheck": "next typegen && tsc --noEmit",
     "format": "prettier --write .",
     "db:generate": "prisma generate",

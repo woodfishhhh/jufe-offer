@@ -6,6 +6,15 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      migration_mode:
+        description: Database migration mode when production and candidate migrations differ
+        required: true
+        default: maintenance
+        type: choice
+        options:
+          - maintenance
+          - compatible
 
 permissions:
   actions: read
@@ -17,15 +26,13 @@ concurrency:
 
 env:
   NODE_VERSION: "24"
+  MIGRATION_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.migration_mode || 'maintenance' }}
 
 jobs:
   verify-and-build:
     name: Verify and build
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    outputs:
-      artifact-id: ${{ steps.upload-release.outputs.artifact-id }}
-      artifact-size: ${{ steps.package-release.outputs.artifact-size }}
 
     steps:
       - name: Check out repository
@@ -39,6 +46,18 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
+
+      - name: Restore build and analysis caches
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .next/cache
+            .cache/eslint
+            tsconfig.tsbuildinfo
+          key: jufe-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            jufe-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}-
+            jufe-${{ runner.os }}-node${{ env.NODE_VERSION }}-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -59,23 +78,12 @@ jobs:
           NEXT_PUBLIC_SITE_URL: https://jufe.woodfish.site
           SESSION_SECRET: ci-only-session-secret-not-used-in-production
 
-      - name: Package release
-        id: package-release
+      - name: Assemble immutable release
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        run: |
-          mkdir -p dist
-          cp -a public .next/standalone/public
-          mkdir -p .next/standalone/.next
-          cp -a .next/static .next/standalone/.next/static
-          tar \
-            -czf "dist/jufe-offer-${GITHUB_SHA}.tar.gz" \
-            .next/standalone \
-            prisma \
-            package.json
-          printf 'artifact-size=%s\n' "$(stat -c '%s' "dist/jufe-offer-${GITHUB_SHA}.tar.gz")" >> "$GITHUB_OUTPUT"
+        run: bash deploy/assemble-release.sh "$GITHUB_SHA"
 
+      # The artifact only crosses the build/deploy job boundary. The server receives rsync deltas.
       - name: Upload release artifact
-        id: upload-release
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -89,7 +97,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: verify-and-build
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 45
     environment:
       name: production
       url: https://jufe.woodfish.site
@@ -97,6 +105,22 @@ jobs:
     steps:
       - name: Check out deployment script
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download release artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: jufe-offer-${{ github.sha }}.tar.gz
+          path: dist
+
+      - name: Extract release
+        run: |
+          mkdir -p dist/release
+          tar -xzf "dist/jufe-offer-${GITHUB_SHA}.tar.gz" -C dist/release
+          (
+            cd dist/release
+            test "$(cat REVISION)" = "$GITHUB_SHA"
+            sha256sum --strict --check --quiet release.manifest.sha256
+          )
 
       - name: Configure pinned SSH host
         env:
@@ -108,58 +132,80 @@ jobs:
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
 
-      - name: Create short-lived artifact URL
-        id: artifact-url
+      - name: Incrementally synchronize candidate release
         env:
-          ARTIFACT_ID: ${{ needs.verify-and-build.outputs.artifact-id }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          headers="$RUNNER_TEMP/artifact-headers"
-          curl --silent --show-error --output /dev/null --dump-header "$headers" \
-            --header "Accept: application/vnd.github+json" \
-            --header "Authorization: Bearer $GH_TOKEN" \
-            --header "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip"
-          location="$(awk 'tolower($1) == "location:" { sub(/\r$/, "", $2); print $2 }' "$headers")"
-          case "$location" in
-            https://*.blob.core.windows.net/*) ;;
-            *) echo 'GitHub did not return the expected artifact download host.' >&2; exit 1 ;;
-          esac
-          encoded="$(printf '%s' "$location" | base64 -w 0)"
-          echo "::add-mask::$location"
-          echo "::add-mask::$encoded"
-          printf 'encoded=%s\n' "$encoded" >> "$GITHUB_OUTPUT"
-
-      - name: Download on server and activate release
-        env:
-          ARTIFACT_SIZE: ${{ needs.verify-and-build.outputs.artifact-size }}
-          ARTIFACT_URL_BASE64: ${{ steps.artifact-url.outputs.encoded }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
           remote="${DEPLOY_USER}@${DEPLOY_HOST}"
-          scp -P "$DEPLOY_PORT" "deploy/deploy-release.sh" "$remote:/opt/jufe-offer/incoming/"
-          ssh -p "$DEPLOY_PORT" "$remote" \
-            "url=\$(printf '%s' '${ARTIFACT_URL_BASE64}' | base64 -d); \
-             partial='/opt/jufe-offer/incoming/jufe-offer-${GITHUB_SHA}.download'; \
-             archive='/opt/jufe-offer/incoming/jufe-offer-${GITHUB_SHA}.tar.gz'; \
-             curl --fail --location --silent --show-error \
-               --retry 8 --retry-delay 2 --retry-all-errors --continue-at - --max-time 540 \
-               --output \"\$partial\" \"\$url\"; \
-             test \"\$(stat -c '%s' \"\$partial\")\" = '${ARTIFACT_SIZE}'; \
-             mv -f \"\$partial\" \"\$archive\"; \
-             bash /opt/jufe-offer/incoming/deploy-release.sh '${GITHUB_SHA}' \"\$archive\""
+          staging_dir="/opt/jufe-offer/releases/.staging-${GITHUB_SHA}"
+          ssh_options=(
+            -p "$DEPLOY_PORT"
+            -o BatchMode=yes
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=6
+          )
+          rsync_ssh="ssh -p $DEPLOY_PORT -o BatchMode=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=6"
 
-      - name: Verify public release
+          scp \
+            -P "$DEPLOY_PORT" \
+            -o BatchMode=yes \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=6 \
+            deploy/deploy-release.sh \
+            "$remote:/opt/jufe-offer/incoming/deploy-release.sh"
+          ssh "${ssh_options[@]}" "$remote" \
+            "bash /opt/jufe-offer/incoming/deploy-release.sh prepare '${GITHUB_SHA}'"
+
+          synchronized=false
+          for attempt in 1 2 3; do
+            if rsync \
+              --archive \
+              --compress \
+              --checksum \
+              --delete-delay \
+              --partial \
+              --partial-dir=.rsync-partial \
+              --safe-links \
+              --link-dest=/opt/jufe-offer/current \
+              --itemize-changes \
+              --stats \
+              --timeout=120 \
+              -e "$rsync_ssh" \
+              dist/release/ "$remote:$staging_dir/"; then
+              synchronized=true
+              break
+            fi
+            sleep "$((attempt * 5))"
+          done
+          test "$synchronized" = true
+
+      - name: Start candidate and switch verified traffic
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          remote="${DEPLOY_USER}@${DEPLOY_HOST}"
+          ssh \
+            -p "$DEPLOY_PORT" \
+            -o BatchMode=yes \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=6 \
+            "$remote" \
+            "bash /opt/jufe-offer/incoming/deploy-release.sh activate '${GITHUB_SHA}' '${MIGRATION_MODE}'"
+
+      # This is observability outside the server. Failure does not invoke database or traffic rollback.
+      - name: Verify public release with retries
         run: |
           response="$(curl --fail --silent --show-error \
-            --retry 8 --retry-delay 2 --retry-all-errors \
+            --retry 8 --retry-delay 3 --retry-all-errors --max-time 15 \
             https://jufe.woodfish.site/api/health)"
           node -e '
             const payload = JSON.parse(process.argv[1]);
             if (payload.ok !== true || payload.revision !== process.argv[2]) {
-              console.error("Unexpected production health payload", payload);
+              console.error("Unexpected public health payload", payload);
               process.exit(1);
             }
           ' "$response" "$GITHUB_SHA"

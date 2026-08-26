@@ -1,31 +1,35 @@
 [Unit]
-Description=江财OFFER Next.js site
+Description=江财OFFER Next.js site (%i slot)
 After=network.target
+ConditionPathIsDirectory=/opt/jufe-offer/slots/%i/.next/standalone
 
 [Service]
 Type=simple
 User=jufe-offer
 Group=jufe-offer
-WorkingDirectory=/opt/jufe-offer/current/.next/standalone
+WorkingDirectory=/opt/jufe-offer/slots/%i/.next/standalone
 EnvironmentFile=/opt/jufe-offer/.env
-EnvironmentFile=-/opt/jufe-offer/release.env
+EnvironmentFile=/opt/jufe-offer/shared/%i.env
 Environment=NODE_ENV=production
-Environment=PORT=3020
-Environment=HOSTNAME=0.0.0.0
 ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=3
+TimeoutStopSec=30
+KillSignal=SIGTERM
+UMask=0027
 StandardOutput=journal
 StandardError=journal
+
 NoNewPrivileges=true
 PrivateTmp=true
+PrivateDevices=true
 ProtectHome=true
 ProtectSystem=strict
-PrivateDevices=true
 ProtectControlGroups=true
 ProtectKernelModules=true
 ProtectKernelTunables=true
 RestrictSUIDSGID=true
+ReadOnlyPaths=/opt/jufe-offer/releases /opt/jufe-offer/slots
 ReadWritePaths=/opt/jufe-offer/data /opt/jufe-offer/shared/cache
 
 [Install]
