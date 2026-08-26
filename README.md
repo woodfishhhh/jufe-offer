@@ -269,6 +269,24 @@ New-Item -ItemType Directory -Force backups | Out-Null
 Copy-Item prisma/dev.db "backups/dev-$(Get-Date -Format yyyyMMdd).db"
 ```
 
+## CI/CD
+
+`.github/workflows/ci-deploy.yml` 会在 Pull Request 上执行 lint、类型检查和生产构建；`main` 更新后还会自动部署到京东云。
+
+生产部署使用版本化 standalone release：构建产物上传到服务器后，脚本先备份 SQLite 并运行 migration，再通过 `/opt/jufe-offer/current` 软链接原子切换。Prisma 迁移工具按版本缓存在共享目录，不会在每次部署时重复安装整套依赖。内网和公网健康检查都通过才算成功；失败会自动恢复上一版代码和部署前数据库。
+
+仓库需要配置以下 GitHub Actions Secrets：
+
+- `DEPLOY_HOST`
+- `DEPLOY_PORT`
+- `DEPLOY_USER`
+- `DEPLOY_SSH_KEY`
+- `DEPLOY_KNOWN_HOSTS`
+
+服务器端部署账号只需要写入 `/opt/jufe-offer`，以及免密执行 `start`、`stop`、`restart` 三个 `jufe-offer.service` 命令。应用由非 root 用户运行，生产环境变量和数据库不会进入构建产物。
+
+首次接入已有服务器时，以 root 身份运行 `deploy/bootstrap-server.sh <当前提交 SHA> /tmp/jufe-offer.service`，把当前平铺部署转换为 release 目录。脚本会保留原 systemd 单元的 `.pre-cicd` 备份，启动检查失败时自动恢复旧单元。
+
 恢复时把备份文件复制回 `prisma/dev.db`，然后重新启动服务。
 
 ## 管理员使用方式

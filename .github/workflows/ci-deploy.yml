@@ -1,0 +1,134 @@
+name: CI and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jufe-offer-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_VERSION: "24"
+
+jobs:
+  verify-and-build:
+    name: Verify and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type-check
+        run: pnpm typecheck
+
+      - name: Build production release
+        run: pnpm build
+        env:
+          ADMIN_PASSWORD_HASH: ci-placeholder
+          ADMIN_USERNAME: ci
+          APP_REVISION: ${{ github.sha }}
+          DATABASE_URL: file:./ci.db
+          NEXT_PUBLIC_SITE_URL: https://jufe.woodfish.site
+          SESSION_SECRET: ci-only-session-secret-not-used-in-production
+
+      - name: Package release
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          mkdir -p dist
+          cp -a public .next/standalone/public
+          mkdir -p .next/standalone/.next
+          cp -a .next/static .next/standalone/.next/static
+          tar \
+            -czf "dist/jufe-offer-${GITHUB_SHA}.tar.gz" \
+            .next/standalone \
+            prisma \
+            package.json
+          cp deploy/deploy-release.sh dist/deploy-release.sh
+
+      - name: Upload release artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: production-${{ github.sha }}
+          path: dist/
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    name: Deploy to JDCloud
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: verify-and-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://jufe.woodfish.site
+
+    steps:
+      - name: Download release artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: production-${{ github.sha }}
+          path: dist
+
+      - name: Configure pinned SSH host
+        env:
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+      - name: Upload and activate release
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          remote="${DEPLOY_USER}@${DEPLOY_HOST}"
+          scp -P "$DEPLOY_PORT" \
+            "dist/jufe-offer-${GITHUB_SHA}.tar.gz" \
+            "dist/deploy-release.sh" \
+            "$remote:/opt/jufe-offer/incoming/"
+          ssh -p "$DEPLOY_PORT" "$remote" \
+            "bash /opt/jufe-offer/incoming/deploy-release.sh '${GITHUB_SHA}' '/opt/jufe-offer/incoming/jufe-offer-${GITHUB_SHA}.tar.gz'"
+
+      - name: Verify public release
+        run: |
+          response="$(curl --fail --silent --show-error \
+            --retry 8 --retry-delay 2 --retry-all-errors \
+            https://jufe.woodfish.site/api/health)"
+          node -e '
+            const payload = JSON.parse(process.argv[1]);
+            if (payload.ok !== true || payload.revision !== process.argv[2]) {
+              console.error("Unexpected production health payload", payload);
+              process.exit(1);
+            }
+          ' "$response" "$GITHUB_SHA"

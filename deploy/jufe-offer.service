@@ -4,12 +4,15 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/jufe-offer
+User=jufe-offer
+Group=jufe-offer
+WorkingDirectory=/opt/jufe-offer/current/.next/standalone
 EnvironmentFile=/opt/jufe-offer/.env
+EnvironmentFile=-/opt/jufe-offer/release.env
 Environment=NODE_ENV=production
 Environment=PORT=3020
 Environment=HOSTNAME=0.0.0.0
-ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -H 0.0.0.0 -p 3020
+ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=3
 StandardOutput=journal
@@ -18,7 +21,12 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-ReadWritePaths=/opt/jufe-offer/data /opt/jufe-offer/prisma
+PrivateDevices=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+ReadWritePaths=/opt/jufe-offer/data /opt/jufe-offer/shared/cache
 
 [Install]
 WantedBy=multi-user.target
