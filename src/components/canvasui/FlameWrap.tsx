@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import {
   cancelDeferredCanvasRelease,
   getAdaptiveCanvasDpr,
-  scheduleIdle,
   scheduleDeferredCanvasRelease,
   supportsWebGL2,
 } from "@/lib/client-performance";
@@ -285,7 +284,7 @@ void main () {
   dens = clamp(dens * 2.4, 0.0, 1.0) * win;
   dens *= mix(1.0 - S(0.32, 1.05, q), 1.0 - S(0.9, 1.2, g), wTop);
   float body = dens * dens * (3.0 - 2.0 * dens);
-  float emis = clamp(uIntensity, 0.0, 2.0);
+  float emis = clamp(uIntensity, 0.0, 3.0);
   float e = body * (0.55 + 0.75 * root) * (0.45 + 0.55 * n)
     + win * root * (0.1 + 0.4 * n);
   e *= mix(0.45, 1.0, wTop) * max(emis, 0.001);
@@ -300,8 +299,8 @@ void main () {
   float fireA = clamp(1.0 - exp(-e * 3.4), 0.0, 1.0);
 
   float halo = exp(-max(front, 0.0) / (spreadPx * 1.2)) * S(0.0, 3.0, front)
-    * (0.5 + 0.5 * n) * 0.3 * clamp(uRim, 0.0, 2.0) * mix(1.0, 0.45, wTop);
-  vec3 glow = uColor * halo * clamp(uIntensity, 0.0, 2.0);
+    * (0.5 + 0.5 * n) * 0.3 * clamp(uRim, 0.0, 3.0) * mix(1.0, 0.45, wTop);
+  vec3 glow = uColor * halo * clamp(uIntensity, 0.0, 3.0);
 
   if (uSparks > 0.001) {
     float sSpeed = max(uSparkSpeed, 0.05);
@@ -610,9 +609,6 @@ export function createFlameWrap(
     initialBounds.left < window.innerWidth;
   let pageVisible = !document.hidden;
   let lastRenderTime = 0;
-  const deckViewport = output.closest<HTMLElement>(".home-deck__viewport");
-  let deckTransitioning = deckViewport?.dataset.transitioning === "true";
-
   const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
   let reducedMotion = motionQuery.matches;
 
@@ -639,7 +635,7 @@ export function createFlameWrap(
   }
 
   function start() {
-    if (destroyed || running || !visible || !pageVisible || deckTransitioning) return;
+    if (destroyed || running || !visible || !pageVisible) return;
     running = true;
     lastTime = performance.now();
     raf = requestAnimationFrame(frame);
@@ -664,19 +660,6 @@ export function createFlameWrap(
     start();
   }
   document.addEventListener("visibilitychange", onVisibilityChange);
-
-  function onDeckTransitionStart() {
-    deckTransitioning = true;
-    cancelAnimationFrame(raf);
-    running = false;
-  }
-
-  function onDeckTransitionEnd() {
-    deckTransitioning = false;
-    start();
-  }
-  document.addEventListener("home-deck-transition-start", onDeckTransitionStart);
-  document.addEventListener("home-deck-transition-end", onDeckTransitionEnd);
 
   const observer = new ResizeObserver(() => {
     syncCanvasSize();
@@ -722,8 +705,6 @@ export function createFlameWrap(
       intersection.disconnect();
       motionQuery.removeEventListener("change", onMotionChange);
       document.removeEventListener("visibilitychange", onVisibilityChange);
-      document.removeEventListener("home-deck-transition-start", onDeckTransitionStart);
-      document.removeEventListener("home-deck-transition-end", onDeckTransitionEnd);
       gl!.deleteTexture(contentTexture);
       gl!.deleteProgram(program);
       gl!.deleteShader(vertexShader);
@@ -757,7 +738,6 @@ export function FlameWrap({ children, className, style, ...options }: FlameWrapP
   const instanceRef = useRef<FlameWrapInstance | null>(null);
   const [initialOptions] = useState(options);
   const [failed, setFailed] = useState(false);
-  const [effectReady, setEffectReady] = useState(false);
 
   const htmlCaptureSupported = useSyncExternalStore(
     emptySubscribe,
@@ -769,15 +749,10 @@ export function FlameWrap({ children, className, style, ...options }: FlameWrapP
     supportsWebGL2,
     () => false,
   );
-  const effectActive = webglSupported && effectReady && !failed;
+  const effectActive = webglSupported && !failed;
 
   const reach = Math.round(Math.max(options.height ?? 170, 24) * 1.5) + 40;
   const glow = Math.round(Math.max(options.spread ?? 8, 8) * 3) + 16;
-
-  useEffect(() => {
-    if (!webglSupported || failed) return;
-    return scheduleIdle(() => setEffectReady(true), 700);
-  }, [failed, webglSupported]);
 
   useEffect(() => {
     if (!effectActive) return;

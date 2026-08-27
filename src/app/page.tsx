@@ -177,7 +177,28 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <FlameWrap color={[185 / 255, 27 / 255, 32 / 255]} radius={28}>
+            <FlameWrap
+              color={[1, 0, 42 / 255]}
+              intensity={0.55}
+              height={200}
+              spread={8}
+              radius={37}
+              speed={0.25}
+              scale={1}
+              turbulence={0.93}
+              turbulenceScale={1.95}
+              turbulenceReach={61}
+              sparks={3}
+              sparkSize={0.6}
+              sparkDensity={0.8}
+              sparkSpeed={1}
+              rim={2.5}
+              melt={0}
+              distortion={8.5}
+              smoke={0.5}
+              ember={1.8}
+              scorch={0}
+            >
               <Link
                 href="https://github.com/woodfishhhh/jufe-offer"
                 target="_blank"
