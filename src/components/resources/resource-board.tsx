@@ -14,7 +14,6 @@ import { MasonryGrid } from "@egjs/react-grid";
 import { Columns3, List, Menu, Search, Star, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth-provider";
-import { Canvas as CanvasEffect } from "@/components/canvasui/Canvas";
 import { ResourceCard, type ResourceView } from "@/components/resources/resource-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -523,7 +522,7 @@ export function ResourceBoard() {
   const directoryLabel = featured ? "精选资源" : category || "全部资源";
 
   return (
-    <CanvasEffect className="bg-background h-dvh min-h-0 overflow-hidden">
+    <div className="bg-background h-dvh min-h-0 overflow-hidden">
       <div className="bg-background h-full w-full">
         <div className="relative h-full w-full overflow-hidden px-5 min-[640px]:px-8 min-[1024px]:pr-0">
           <div className="grid h-full items-start min-[1024px]:grid-cols-[220px_minmax(0,1fr)] min-[1024px]:gap-8">
@@ -794,6 +793,6 @@ export function ResourceBoard() {
           ) : null}
         </div>
       </div>
-    </CanvasEffect>
+    </div>
   );
 }
