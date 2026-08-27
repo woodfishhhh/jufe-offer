@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
+import {
+  shouldReduceEffects,
+  subscribeToPerformanceHints,
+} from "@/lib/client-performance";
 import { createRectCache } from "../rect-cache";
 
 export type ClothPin = "top" | "bottom" | "left" | "right";
@@ -904,15 +908,23 @@ export function Cloth({ children, className, style, ...options }: ClothProps) {
   const instanceRef = useRef<ClothInstance | null>(null);
   const [initialOptions] = useState(options);
   const [failed, setFailed] = useState(false);
+  const [effectsAllowed, setEffectsAllowed] = useState(false);
 
   const supported = useSyncExternalStore(
     emptySubscribe,
     supportsHtmlInCanvas,
     () => false,
   );
-  const native = supported && !failed;
+  const native = supported && effectsAllowed && !failed;
 
   useEffect(() => {
+    const update = () => setEffectsAllowed(!shouldReduceEffects());
+    update();
+    return subscribeToPerformanceHints(update);
+  }, []);
+
+  useEffect(() => {
+    if (!native) return;
     const source = sourceRef.current;
     const content = contentRef.current;
     const output = outputRef.current;
@@ -926,23 +938,31 @@ export function Cloth({ children, className, style, ...options }: ClothProps) {
   }, [initialOptions, native]);
 
   useEffect(() => {
+    if (!native) return;
+    const output = outputRef.current;
+    if (!output) return;
+    const handleContextLost = (event: Event) => {
+      event.preventDefault();
+      setFailed(true);
+    };
+    output.addEventListener("webglcontextlost", handleContextLost);
+    return () => output.removeEventListener("webglcontextlost", handleContextLost);
+  }, [native]);
+
+  useEffect(() => {
     instanceRef.current?.setOptions(options);
   });
 
   return (
     <div className={className} style={{ position: "relative", ...style }}>
-      <canvas
-        ref={sourceRef}
-        // @ts-expect-error experimental html-in-canvas attribute
-        layoutsubtree="true"
-        suppressHydrationWarning
-        style={
-          native
-            ? { position: "absolute", inset: 0, width: "100%", height: "100%" }
-            : { display: "none" }
-        }
-      >
-        {native ? (
+      {native ? (
+        <canvas
+          ref={sourceRef}
+          // @ts-expect-error experimental html-in-canvas attribute
+          layoutsubtree="true"
+          suppressHydrationWarning
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+        >
           <div
             ref={contentRef}
             style={{
@@ -954,8 +974,8 @@ export function Cloth({ children, className, style, ...options }: ClothProps) {
           >
             {children}
           </div>
-        ) : null}
-      </canvas>
+        </canvas>
+      ) : null}
       {!native ? (
         <div
           ref={contentRef}
@@ -969,17 +989,19 @@ export function Cloth({ children, className, style, ...options }: ClothProps) {
           {children}
         </div>
       ) : null}
-      <canvas
-        ref={outputRef}
-        aria-hidden
-        style={{
-          position: "absolute",
-          inset: 0,
-          width: "100%",
-          height: "100%",
-          pointerEvents: "none",
-        }}
-      />
+      {native ? (
+        <canvas
+          ref={outputRef}
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            pointerEvents: "none",
+          }}
+        />
+      ) : null}
     </div>
   );
 }

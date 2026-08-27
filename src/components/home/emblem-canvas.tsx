@@ -9,21 +9,36 @@ import {
   scheduleIdle,
   shouldReduceEffects,
   supportsWebGL2,
+  subscribeToPerformanceHints,
 } from "@/lib/client-performance";
 import { cn } from "@/lib/utils";
 
 export function EmblemCanvas({ className }: { className?: string }) {
   const [renderer, setRenderer] = useState<ComponentType<AsciiObjectProps> | null>(null);
   const [mode, setMode] = useState<"loading" | "active" | "fallback">("loading");
+  const [effectsAllowed, setEffectsAllowed] = useState(false);
 
   useEffect(() => {
+    const update = () => {
+      const allowed =
+        !shouldReduceEffects() &&
+        !window.matchMedia("(max-width: 767px) and (pointer: coarse)").matches;
+      setEffectsAllowed(allowed);
+      if (!allowed) {
+        setRenderer(null);
+        setMode("fallback");
+      }
+    };
+    update();
+    return subscribeToPerformanceHints(update);
+  }, []);
+
+  useEffect(() => {
+    if (!effectsAllowed) return;
     let cancelled = false;
     const cancelIdle = scheduleIdle(() => {
-      if (
-        shouldReduceEffects() ||
-        window.matchMedia("(max-width: 767px) and (pointer: coarse)").matches ||
-        !supportsWebGL2()
-      ) {
+      setMode("loading");
+      if (!supportsWebGL2()) {
         setMode("fallback");
         return;
       }
@@ -39,7 +54,7 @@ export function EmblemCanvas({ className }: { className?: string }) {
       cancelled = true;
       cancelIdle();
     };
-  }, []);
+  }, [effectsAllowed]);
 
   const Renderer = renderer;
 

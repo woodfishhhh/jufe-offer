@@ -5,7 +5,9 @@ import {
   cancelDeferredCanvasRelease,
   getAdaptiveCanvasDpr,
   scheduleDeferredCanvasRelease,
+  shouldReduceEffects,
   supportsWebGL2,
+  subscribeToPerformanceHints,
 } from "@/lib/client-performance";
 
 export interface FlameWrapOptions {
@@ -738,6 +740,7 @@ export function FlameWrap({ children, className, style, ...options }: FlameWrapP
   const instanceRef = useRef<FlameWrapInstance | null>(null);
   const [initialOptions] = useState(options);
   const [failed, setFailed] = useState(false);
+  const [effectsAllowed, setEffectsAllowed] = useState(false);
 
   const htmlCaptureSupported = useSyncExternalStore(
     emptySubscribe,
@@ -749,10 +752,17 @@ export function FlameWrap({ children, className, style, ...options }: FlameWrapP
     supportsWebGL2,
     () => false,
   );
-  const effectActive = webglSupported && !failed;
+  const effectActive =
+    htmlCaptureSupported && webglSupported && effectsAllowed && !failed;
 
   const reach = Math.round(Math.max(options.height ?? 170, 24) * 1.5) + 40;
   const glow = Math.round(Math.max(options.spread ?? 8, 8) * 3) + 16;
+
+  useEffect(() => {
+    const update = () => setEffectsAllowed(!shouldReduceEffects());
+    update();
+    return subscribeToPerformanceHints(update);
+  }, []);
 
   useEffect(() => {
     if (!effectActive) return;
@@ -767,6 +777,18 @@ export function FlameWrap({ children, className, style, ...options }: FlameWrapP
       instanceRef.current = null;
     };
   }, [effectActive, initialOptions]);
+
+  useEffect(() => {
+    if (!effectActive) return;
+    const output = outputRef.current;
+    if (!output) return;
+    const handleContextLost = (event: Event) => {
+      event.preventDefault();
+      setFailed(true);
+    };
+    output.addEventListener("webglcontextlost", handleContextLost);
+    return () => output.removeEventListener("webglcontextlost", handleContextLost);
+  }, [effectActive]);
 
   useEffect(() => {
     instanceRef.current?.setOptions(options);

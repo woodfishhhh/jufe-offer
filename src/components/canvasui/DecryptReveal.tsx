@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import {
+  shouldReduceEffects,
+  subscribeToPerformanceHints,
+} from "@/lib/client-performance";
 import { createRectCache } from "../rect-cache";
 
 export interface DecryptRevealOptions {
@@ -1051,6 +1055,7 @@ export function DecryptReveal({
   const instanceRef = useRef<DecryptRevealInstance | null>(null);
   const [initialOptions] = useState(options);
   const [failed, setFailed] = useState(false);
+  const [effectsAllowed, setEffectsAllowed] = useState(false);
   const [source] = useState<HTMLCanvasElement | null>(() => {
     if (typeof document === "undefined") return null;
     return document.createElement("canvas");
@@ -1061,7 +1066,13 @@ export function DecryptReveal({
     supportsHtmlInCanvas,
     () => false,
   );
-  const native = supported && !failed;
+  const native = supported && effectsAllowed && !failed;
+
+  useEffect(() => {
+    const update = () => setEffectsAllowed(!shouldReduceEffects());
+    update();
+    return subscribeToPerformanceHints(update);
+  }, []);
 
   useEffect(() => {
     if (!native || !source) return;

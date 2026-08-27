@@ -87,13 +87,22 @@ export function subscribeToPerformanceHints(callback: () => void) {
   if (typeof window === "undefined") return () => {};
   const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const connection = (navigator as NavigatorWithHints).connection;
+  const root = document.documentElement;
+  const effectsObserver =
+    typeof MutationObserver === "undefined" ? null : new MutationObserver(callback);
+
   motion.addEventListener("change", callback);
   connection?.addEventListener("change", callback);
   window.addEventListener("resize", callback, { passive: true });
+  effectsObserver?.observe(root, {
+    attributes: true,
+    attributeFilter: ["data-effects"],
+  });
   return () => {
     motion.removeEventListener("change", callback);
     connection?.removeEventListener("change", callback);
     window.removeEventListener("resize", callback);
+    effectsObserver?.disconnect();
   };
 }
 

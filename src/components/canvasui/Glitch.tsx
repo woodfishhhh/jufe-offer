@@ -518,6 +518,18 @@ export function Glitch({
   }, [initialOptions, native]);
 
   useEffect(() => {
+    if (!native) return;
+    const output = outputRef.current;
+    if (!output) return;
+    const handleContextLost = (event: Event) => {
+      event.preventDefault();
+      setFailed(true);
+    };
+    output.addEventListener("webglcontextlost", handleContextLost);
+    return () => output.removeEventListener("webglcontextlost", handleContextLost);
+  }, [native]);
+
+  useEffect(() => {
     instanceRef.current?.setOptions(options);
   });
 
@@ -534,18 +546,14 @@ export function Glitch({
 
   return (
     <div className={className} style={{ position: "relative", ...style }}>
-      <canvas
-        ref={sourceRef}
-        // @ts-expect-error experimental html-in-canvas attribute
-        layoutsubtree="true"
-        suppressHydrationWarning
-        style={
-          native
-            ? { position: "absolute", inset: 0, width: "100%", height: "100%" }
-            : { display: "none" }
-        }
-      >
-        {native ? (
+      {native ? (
+        <canvas
+          ref={sourceRef}
+          // @ts-expect-error experimental html-in-canvas attribute
+          layoutsubtree="true"
+          suppressHydrationWarning
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+        >
           <div
             ref={contentRef}
             style={{
@@ -558,8 +566,8 @@ export function Glitch({
           >
             {children}
           </div>
-        ) : null}
-      </canvas>
+        </canvas>
+      ) : null}
       {!native ? (
         <div
           ref={contentRef}
