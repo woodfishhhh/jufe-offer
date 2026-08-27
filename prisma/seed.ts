@@ -95,6 +95,170 @@ const programmingToolResources = [
   },
 ];
 
+const competitionResources = [
+  {
+    title: "AtCoder",
+    description: "国际算法竞赛平台，定期举办高质量编程比赛，适合训练算法与实现能力。",
+    url: "https://atcoder.jp/",
+    category: "竞赛",
+    tags: ["竞赛", "算法", "ICPC"],
+    isFeatured: true,
+  },
+  {
+    title: "洛谷",
+    description: "中文编程题库与竞赛社区，覆盖算法训练、题解交流和在线比赛。",
+    url: "https://www.luogu.com.cn/",
+    category: "竞赛",
+    tags: ["竞赛", "算法", "题库"],
+    isFeatured: true,
+  },
+  {
+    title: "AcWing",
+    description: "面向算法学习与竞赛训练的平台，提供课程、题库、活动和社区交流。",
+    url: "https://www.acwing.com/about/",
+    category: "竞赛",
+    tags: ["竞赛", "算法", "学习社区"],
+    isFeatured: false,
+  },
+  {
+    title: "Virtual Judge",
+    description: "聚合多个在线评测平台的 Virtual Judge，方便参加跨平台算法训练和比赛。",
+    url: "https://vjudge.net/",
+    category: "竞赛",
+    tags: ["竞赛", "OJ", "算法"],
+    isFeatured: false,
+  },
+  {
+    title: "星码 StarryCoding",
+    description: "面向算法竞赛入门的学习平台，适合从基础开始建立刷题和竞赛习惯。",
+    url: "https://www.starrycoding.com/",
+    category: "竞赛",
+    tags: ["竞赛", "算法", "入门"],
+    isFeatured: false,
+  },
+  {
+    title: "CFTracker",
+    description: "Codeforces 比赛日历与信息查询工具，方便关注比赛安排和训练计划。",
+    url: "https://cftracker.netlify.app/contests",
+    category: "竞赛",
+    tags: ["Codeforces", "竞赛", "工具"],
+    isFeatured: false,
+  },
+];
+
+const learningRouteResources = [
+  {
+    title: "算法与编程学习路线思维导图",
+    description: "腾讯文档思维导图形式的算法与编程学习路线，适合梳理阶段目标和知识结构。",
+    url: "https://docs.qq.com/mind/DS2FhYVpvcFRvSUti",
+    category: "学习路线",
+    tags: ["路线图", "算法", "思维导图"],
+    isFeatured: true,
+  },
+  {
+    title: "前端学习路线 · Front Talk",
+    description: "前端方向学习路线，按基础、工程实践和进阶方向整理学习内容。",
+    url: "https://front-talk.com/roadmap",
+    category: "学习路线",
+    tags: ["前端", "路线图", "Web"],
+    isFeatured: true,
+  },
+  {
+    title: "后端学习路线",
+    description: "面向后端开发学习的路线视频，帮助梳理语言、框架、数据库和工程实践。",
+    url: "https://www.bilibili.com/video/BV1Z6YCzSEWq/",
+    category: "学习路线",
+    tags: ["后端", "路线图", "视频"],
+    isFeatured: false,
+  },
+  {
+    title: "快速入门大模型应用开发",
+    description: "大模型应用开发入门视频，适合了解模型调用、应用构建和实践方向。",
+    url: "https://www.bilibili.com/video/BV1Dwwnz8ExP/",
+    category: "学习路线",
+    tags: ["大模型", "AI", "视频"],
+    isFeatured: false,
+  },
+  {
+    title: "Java 学习路线与大厂实习准备",
+    description: "围绕 Java 学习、项目积累和实习准备整理的经验分享视频。",
+    url: "https://www.bilibili.com/video/BV1EQE4zMEpP/",
+    category: "学习路线",
+    tags: ["Java", "后端", "实习"],
+    isFeatured: false,
+  },
+  {
+    title: "我的 Agent 学习路线",
+    description: "Agent 方向学习路线分享，适合了解智能体基础概念和实践切入点。",
+    url: "https://www.bilibili.com/video/BV1thRcBpEtZ/",
+    category: "学习路线",
+    tags: ["Agent", "AI", "视频"],
+    isFeatured: false,
+  },
+  {
+    title: "前端交互学习路线",
+    description: "以前端交互为主题的学习路线视频，适合补充页面交互和动效实践。",
+    url: "https://www.bilibili.com/video/BV1CCuxzHEus/",
+    category: "学习路线",
+    tags: ["前端", "交互", "视频"],
+    isFeatured: false,
+  },
+];
+
+const excellentResumeResources = [
+  {
+    title: "牛客：技术岗校招简历模板深度拆解",
+    description: "从结构、信息密度、项目表达和量化结果等角度拆解技术岗校招简历模板。",
+    url: "https://www.nowcoder.com/discuss/865554536985853952",
+    category: "优秀简历",
+    tags: ["简历", "校招", "技术岗"],
+    isFeatured: true,
+  },
+  {
+    title: "牛客：校招简历准备与模板",
+    description:
+      "整理校招简历中的教育背景、经历描述、荣誉和技能模块写法，并提供模板参考。",
+    url: "https://www.nowcoder.com/discuss/353159519880552448",
+    category: "优秀简历",
+    tags: ["简历", "校招", "模板"],
+    isFeatured: true,
+  },
+  {
+    title: "牛客：简历系列与项目经历写法",
+    description: "围绕项目经历和简历内容迭代的系列文章，适合对照检查项目表达。",
+    url: "https://www.nowcoder.com/discuss/353159535340756992",
+    category: "优秀简历",
+    tags: ["简历", "项目经历", "求职"],
+    isFeatured: false,
+  },
+  {
+    title: "Tech Interview Handbook：简历指南",
+    description:
+      "面向软件工程求职的英文简历指南，覆盖筛选逻辑、内容组织和 ATS 友好写法。",
+    url: "https://www.techinterviewhandbook.org/resume/",
+    category: "优秀简历",
+    tags: ["简历", "英文", "软件工程"],
+    isFeatured: true,
+  },
+  {
+    title: "Awesome CV",
+    description: "开源 LaTeX 简历与求职信模板，适合需要自行排版和维护源文件的同学。",
+    url: "https://github.com/posquit0/Awesome-CV",
+    category: "优秀简历",
+    tags: ["简历", "LaTeX", "开源"],
+    isFeatured: false,
+  },
+  {
+    title: "sb2nov Resume",
+    description:
+      "开源软件工程师英文简历示例与 LaTeX 源文件，适合参考技术经历的组织方式。",
+    url: "https://github.com/sb2nov/resume",
+    category: "优秀简历",
+    tags: ["简历", "英文", "LaTeX"],
+    isFeatured: false,
+  },
+];
+
 const resources = [
   {
     title: "GitHub",
@@ -117,8 +281,8 @@ const resources = [
     title: "LeetCode",
     description: "算法与数据结构练习平台，适合准备笔试和面试中的编程题。",
     url: "https://leetcode.cn",
-    category: "编程学习",
-    tags: ["算法", "刷题", "面试"],
+    category: "竞赛",
+    tags: ["竞赛", "算法", "刷题"],
     isFeatured: true,
   },
   {
@@ -129,6 +293,7 @@ const resources = [
     tags: ["竞赛", "算法", "ICPC"],
     isFeatured: false,
   },
+  ...competitionResources,
   {
     title: "牛客网",
     description: "国内常见的求职社区，可找实习校招、刷笔试题和阅读面经。",
@@ -157,8 +322,8 @@ const resources = [
     title: "Datawhale",
     description: "开源学习社区，常组织数据科学、机器学习和编程方向的学习活动。",
     url: "https://www.datawhale.cn",
-    category: "训练营",
-    tags: ["数据科学", "学习社区", "训练营"],
+    category: "编程学习",
+    tags: ["数据科学", "学习社区", "课程"],
     isFeatured: false,
   },
   {
@@ -185,6 +350,7 @@ const resources = [
     tags: ["路线图", "自学", "职业方向"],
     isFeatured: true,
   },
+  ...learningRouteResources,
   {
     title: "Visual Studio Code",
     description: "目前最常用的代码编辑器之一，插件丰富，适合日常开发。",
@@ -198,10 +364,11 @@ const resources = [
     title: "Tech Interview Handbook",
     description: "开源面试准备手册，覆盖算法、系统设计和求职流程。",
     url: "https://www.techinterviewhandbook.org/zh-hans/",
-    category: "简历与面试",
+    category: "面经",
     tags: ["面试", "算法", "求职"],
     isFeatured: true,
   },
+  ...excellentResumeResources,
   {
     title: "CS 自学指南",
     description: "计算机自学路径整理，适合补充课内没有覆盖的基础和项目经验。",
