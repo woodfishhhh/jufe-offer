@@ -261,6 +261,24 @@ const excellentResumeResources = [
 
 const submittedProjectResources = [
   {
+    title: "江财OFFER",
+    description:
+      "江财学生自发维护的实习、竞赛与学习资源导航，汇总校内开源项目、面经、优秀简历和常用入口。",
+    url: "https://github.com/woodfishhhh/jufe-offer",
+    category: "校内开源项目",
+    tags: ["开源", "江财", "资源导航"],
+    isFeatured: true,
+  },
+  {
+    title: "Typability",
+    description:
+      "基于 Milkdown 的所见即所得 Markdown 编辑器，适合以可视化方式编辑和管理 Markdown 内容。",
+    url: "https://github.com/SimonShiki/Typability",
+    category: "校内开源项目",
+    tags: ["开源", "Markdown", "编辑器"],
+    isFeatured: true,
+  },
+  {
     title: "AutoEmailSender",
     description:
       "面向导师套磁场景的智能邮件助手，支持导师信息整理、匹配分析、邮件草稿生成、定时发送与回复追踪。",
