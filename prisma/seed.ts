@@ -259,6 +259,36 @@ const excellentResumeResources = [
   },
 ];
 
+const submittedProjectResources = [
+  {
+    title: "AutoEmailSender",
+    description:
+      "面向导师套磁场景的智能邮件助手，支持导师信息整理、匹配分析、邮件草稿生成、定时发送与回复追踪。",
+    url: "https://github.com/JunieXD/AutoEmailSender",
+    category: "校内开源项目",
+    tags: ["开源", "AI", "邮件"],
+    isFeatured: true,
+  },
+  {
+    title: "Woodfish Theme",
+    description:
+      "面向 VS Code 的深色主题与运行时视觉效果，提供渐变语法、文字发光和彩虹光标等可配置效果。",
+    url: "https://github.com/woodfishhhh/Woodfish-Theme",
+    category: "校内开源项目",
+    tags: ["开源", "VS Code", "主题"],
+    isFeatured: true,
+  },
+  {
+    title: "XCPC Tracker",
+    description:
+      "前端优先、静态部署的 XCPC 题目覆盖追踪工具，支持比赛目录、成员管理、覆盖状态和做题状态同步。",
+    url: "https://github.com/mohaoz/xcpc-tracker",
+    category: "竞赛",
+    tags: ["竞赛", "算法", "工具"],
+    isFeatured: true,
+  },
+];
+
 const resources = [
   {
     title: "GitHub",
@@ -294,6 +324,7 @@ const resources = [
     isFeatured: false,
   },
   ...competitionResources,
+  ...submittedProjectResources,
   {
     title: "牛客网",
     description: "国内常见的求职社区，可找实习校招、刷笔试题和阅读面经。",
