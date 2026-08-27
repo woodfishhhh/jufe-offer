@@ -1,9 +1,7 @@
 import { z } from "zod";
 import {
-  CANDIDATE_AUTO_PUBLISH_VALUES,
   CANDIDATE_CATEGORY_VALUES,
   CANDIDATE_INGEST_DISPOSITION_VALUES,
-  CANDIDATE_MANUAL_ONLY_VALUES,
   CANDIDATE_SOURCE_TYPE_VALUES,
   CANDIDATE_STATUS_VALUES,
 } from "@/data/candidates";
@@ -72,61 +70,7 @@ const candidateIngestObjectSchema = z.strictObject({
   discoveredAt: isoDateTime,
 });
 
-export const candidateIngestSchema = candidateIngestObjectSchema.superRefine(
-  (value, context) => {
-    if (
-      (CANDIDATE_MANUAL_ONLY_VALUES as readonly string[]).includes(value.category)
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["category"],
-        message: "该分类只允许管理员人工提交。",
-      });
-    }
-
-    if (value.disposition !== "AUTO_PUBLISH") return;
-
-    if (
-      !(CANDIDATE_AUTO_PUBLISH_VALUES as readonly string[]).includes(value.category)
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["disposition"],
-        message: "该分类只能进入人工审核。",
-      });
-    }
-    if (!["OFFICIAL_API", "OFFICIAL_PAGE"].includes(value.sourceType)) {
-      context.addIssue({
-        code: "custom",
-        path: ["sourceType"],
-        message: "自动发布只接受官方 API 或官方页面。",
-      });
-    }
-    if (!value.officialUrl) {
-      context.addIssue({
-        code: "custom",
-        path: ["officialUrl"],
-        message: "自动发布必须提供已核验的官方链接。",
-      });
-    } else if (
-      new URL(value.officialUrl).hostname.toLowerCase() !==
-      new URL(value.sourceUrl).hostname.toLowerCase()
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["officialUrl"],
-        message: "自动发布的官方链接必须与来源链接同域。",
-      });
-    }
-    if (!value.rawExcerpt?.trim()) {
-      context.addIssue({
-        code: "custom",
-        path: ["rawExcerpt"],
-        message: "自动发布必须保留明确的原始证据。",
-      });
-    }
-  },
-);
+export const candidateIngestSchema = candidateIngestObjectSchema;
 
 export const candidateAdminQuerySchema = z.strictObject({
   status: z.enum(CANDIDATE_STATUS_VALUES).default("PENDING"),

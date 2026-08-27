@@ -24,7 +24,7 @@ export class CandidateResourceConflictError extends Error {
   }
 }
 
-export type CandidateIngestAction = "created" | "updated" | "duplicate" | "published";
+export type CandidateIngestAction = "duplicate" | "published";
 
 export type CandidateIngestResult = {
   candidateId: string;
@@ -49,7 +49,9 @@ function candidateData(input: CandidateIngestInput) {
     tags: stringifyTags(input.tags),
     rawExcerpt: input.rawExcerpt || null,
     discoveredAt: new Date(input.discoveredAt),
-    ingestDisposition: input.disposition,
+    // Review has been retired. Keep accepting the legacy field at the API
+    // boundary, but persist the policy that was actually applied.
+    ingestDisposition: "AUTO_PUBLISH" as const,
   };
 }
 
@@ -84,8 +86,12 @@ function resourceUrlVariants(value: string) {
   const canonical = url.toString();
   const variants = new Set([value, canonical]);
 
-  if (!url.search && canonical.endsWith("/")) {
-    variants.add(canonical.slice(0, -1));
+  if (!url.search) {
+    const withoutTrailingSlash = canonical.endsWith("/")
+      ? canonical.slice(0, -1)
+      : canonical;
+    variants.add(withoutTrailingSlash);
+    variants.add(`${withoutTrailingSlash}/`);
   }
 
   return Array.from(variants);
@@ -146,10 +152,7 @@ async function publishCandidate(
     where: { id: candidate.id, status: CandidateStatus.PENDING },
     data: {
       status: CandidateStatus.APPROVED,
-      reviewNote:
-        candidate.ingestDisposition === "AUTO_PUBLISH"
-          ? "OpenClaw 明确标记为可自动发布。"
-          : null,
+      reviewNote: "OpenClaw 自动采集并直接发布。",
       reviewedAt: new Date(),
       resourceId: resource.id,
     },
@@ -217,18 +220,10 @@ async function ingestCandidateOnce(
           },
         });
 
-    if (input.disposition === "AUTO_PUBLISH") {
-      const published = await publishCandidate(tx, candidate, "mark");
-      return {
-        candidateId: candidate.id,
-        action: published.action,
-        created: !byExternalId,
-      };
-    }
-
+    const published = await publishCandidate(tx, candidate, "mark");
     return {
       candidateId: candidate.id,
-      action: byExternalId ? "updated" : "created",
+      action: published.action,
       created: !byExternalId,
     };
   });

@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     if (error instanceof CandidateStateConflictError) {
-      return jsonError("候选已经完成审核，不能由 OpenClaw 覆盖或重新发布。", 409);
+      return jsonError("候选已经完成入库，不能由 OpenClaw 覆盖或重新发布。", 409);
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return jsonError("externalId 或 dedupeKey 与现有候选冲突。", 409);

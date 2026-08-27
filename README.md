@@ -300,12 +300,11 @@ Copy-Item prisma/dev.db "backups/dev-$(Get-Date -Format yyyyMMdd).db"
 
 1. 打开资源页。
 2. 点击导航栏右侧的“管理员登录”。
-3. 登录成功后，资源页会出现“待审核”和“新增资源”，每条资源会出现“编辑”和“删除”。
-4. “待审核”抽屉中可以查看 OpenClaw 保留的来源、官方链接和原始证据，并通过、拒绝或标记重复。
-5. 通过和拒绝都需要二次确认；通过会在一个数据库事务中创建正式资源并更新候选状态。
-6. 删除正式资源前也会二次确认，并显示资源名称。
-7. 退出登录后立即失去修改和审核权限。
-8. 登录 Cookie 是当前浏览器会话，关闭浏览器后需要重新登录。
+3. 登录成功后，资源页会出现“新增资源”，每条资源会出现“编辑”和“删除”。
+4. OpenClaw 核验合格的候选会直接成为正式资源，不再进入管理员审核队列。
+5. 删除正式资源前会二次确认，并显示资源名称。
+6. 退出登录后立即失去新增、修改和删除权限。
+7. 登录 Cookie 是当前浏览器会话，关闭浏览器后需要重新登录。
 
 未登录用户仍可浏览、搜索和筛选资源。所有写操作都会在服务端校验管理员身份。
 
@@ -319,18 +318,12 @@ Authorization: Bearer <OPENCLAW_INGEST_TOKEN>
 Content-Type: application/json
 ```
 
-OpenClaw 不使用管理员用户名或密码，也不能直接访问 SQLite。每次提交都必须显式提供
-`disposition`：
-
-- `AUTO_PUBLISH`：OpenClaw 已完成来源核实并确认可以直接发布。服务端先保存完整 Candidate，再在同一事务中创建 Resource 并把 Candidate 标为 `APPROVED`。
-- `REVIEW_REQUIRED`：信息仍有疑问或风险，只写入 `PENDING`，等待管理员在 `/resources` 审核。
-
-服务端不会只信任 `AUTO_PUBLISH` 标志。自动发布还必须同时满足：分类允许自动发布、
-来源是 `OFFICIAL_API` 或 `OFFICIAL_PAGE`、`officialUrl` 与来源同域，并保留非空
-原始证据。学习资料、GitHub、开源资源、工具和求职经验只能进入人工审核。
+OpenClaw 不使用管理员用户名或密码，也不能直接访问 SQLite。请求继续保留
+`disposition` 字段以兼容旧提交器，但服务端统一按 `AUTO_PUBLISH` 处理：先保存完整
+Candidate，再在同一事务中创建 Resource 并把 Candidate 标为 `APPROVED`。
 
 接口不会删除或修改已有正式资源。相同 `dedupeKey` 不会建立第二条候选；自动发布时如发现正式资源中已有相同 URL，会把候选标记为 `DUPLICATE`。已进入
-`APPROVED`、`REJECTED` 或 `DUPLICATE` 的候选不能被 OpenClaw 覆盖回待审核状态。
+`APPROVED`、`REJECTED` 或 `DUPLICATE` 的候选不能被 OpenClaw 覆盖或重新发布。
 
 请求体最多 64 KiB，使用 strict schema，所有链接必须是 HTTPS。允许的分类只有：
 
@@ -349,8 +342,9 @@ OpenClaw 不使用管理员用户名或密码，也不能直接访问 SQLite。�
 - `CAMPUS_RESOURCE`
 - `OTHER_RESOURCE`
 
-`REFERRAL` 和 `OTHER_RESOURCE` 只接受管理员人工提交。公开开源活动与资源可以使用
-`OPEN_SOURCE_RESOURCE` 自动发现，但必须人工审核，也不得推断江财成员关系。
+公开开源活动与资源可以使用 `OPEN_SOURCE_RESOURCE` 自动发现并直接发布，但不得推断
+江财成员关系。`REFERRAL` 和 `OTHER_RESOURCE` 当前没有自动发现来源；如果提交为合格
+候选，服务端同样直接发布。
 
 允许的 `sourceType`：`RSSHUB`、`OFFICIAL_API`、`OFFICIAL_PAGE`、
 `WEB_MONITOR`、`MANUAL_RESEARCH`。
@@ -361,7 +355,7 @@ OpenClaw 不使用管理员用户名或密码，也不能直接访问 SQLite。�
 {
   "externalId": "nowcoder:123456",
   "dedupeKey": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-  "disposition": "REVIEW_REQUIRED",
+  "disposition": "AUTO_PUBLISH",
   "category": "INTERNSHIP",
   "title": "某公司 2027 届暑期实习",
   "summary": "面向 2027 届学生，包含研发和算法岗位。",
@@ -378,25 +372,12 @@ OpenClaw 不使用管理员用户名或密码，也不能直接访问 SQLite。�
 
 成功响应：
 
-- 首次创建待审核候选：HTTP 201，`{"ok":true,"candidateId":"...","action":"created"}`
-- 更新同一 `externalId` 的待审核候选：HTTP 200，`action` 为 `updated`
 - 命中其他候选的 `dedupeKey` 或已有相同 URL：HTTP 200，`action` 为 `duplicate`
-- 自动发布：新候选 HTTP 201、已有待审核候选 HTTP 200，`action` 为 `published`
+- 直接发布：新候选 HTTP 201，`action` 为 `published`
 
 Token 未正确配置时返回 503；Token 缺失或错误时返回 401；非法字段返回 400；
-已审核候选重投或并发状态冲突返回 409；触发每分钟 60 次的单实例速率限制时返回 429。
-
-管理员审核接口继续使用现有 Session Cookie：
-
-```text
-GET  /api/admin/candidates?status=PENDING
-POST /api/admin/candidates/:id/approve
-POST /api/admin/candidates/:id/reject
-POST /api/admin/candidates/:id/duplicate
-```
-
-拒绝和标记重复可提交可选的 `reviewNote`，最多 300 个字。候选审核后不会删除，
-原始来源与证据会继续保留。
+已完成入库的候选重投或并发状态冲突返回 409；触发每分钟 60 次的单实例速率限制时返回 429。
+候选原始来源与证据会继续保留，管理员只需要维护正式资源，可以编辑或删除。
 
 正式资源的 `origin` 会返回 `SEED`、`MANUAL` 或 `OPENCLAW`。资源卡片和分类
 目录据此显示“初始整理”“人工整理”或“自动采集”，分类总数不再被误解为自动抓取数量。

@@ -37,13 +37,6 @@ import type { ResourceDto } from "@/lib/resources";
 import type { ResourceInput } from "@/schemas/resource";
 import { cn, readApiError } from "@/lib/utils";
 
-const CandidateReviewPanel = dynamic(
-  () =>
-    import("@/components/resources/candidate-review-panel").then(
-      (module) => module.CandidateReviewPanel,
-    ),
-  { ssr: false },
-);
 const DeleteResourceDialog = dynamic(
   () =>
     import("@/components/resources/delete-resource-dialog").then(
@@ -282,14 +275,25 @@ function DirectoryNavigation({
                   {(stats.automatedCategories[item] ?? 0) > 0 ? (
                     <span
                       className={cn(
-                        "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                        "relative inline-flex h-5 shrink-0 self-center items-center gap-1.5 overflow-hidden rounded-full border px-2 text-[10px] font-semibold tracking-[0.02em] shadow-[inset_0_1px_0_rgb(255_255_255/0.35)] transition-colors",
                         active
-                          ? "bg-background/15 text-background"
-                          : "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
+                          ? "border-background/20 bg-background/12 text-background"
+                          : "border-emerald-500/20 bg-gradient-to-r from-emerald-500/14 via-teal-500/10 to-cyan-500/8 text-emerald-800 dark:border-emerald-400/20 dark:text-emerald-200",
                       )}
-                      title="由 OpenClaw 自动采集并发布"
+                      title="由 OpenClaw 自动采集并直接发布"
+                      aria-label={`自动采集并发布 ${stats.automatedCategories[item]} 条`}
                     >
-                      自动 {stats.automatedCategories[item]}
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "size-1.5 rounded-full shadow-[0_0_0_3px_rgb(16_185_129/0.12)]",
+                          active ? "bg-background" : "bg-emerald-500 dark:bg-emerald-300",
+                        )}
+                      />
+                      <span>自动</span>
+                      <span className="font-mono tabular-nums opacity-75">
+                        {stats.automatedCategories[item]}
+                      </span>
                     </span>
                   ) : null}
                   <span
@@ -655,12 +659,6 @@ export function ResourceBoard() {
 
                   {authenticated ? (
                     <div className="border-border flex flex-wrap items-center gap-2 border-l pl-2">
-                      <CandidateReviewPanel
-                        onResourceApproved={async () => {
-                          invalidateResourceListCache();
-                          await Promise.all([loadResources(), loadDirectoryStats()]);
-                        }}
-                      />
                       <Button
                         type="button"
                         onClick={() => {
