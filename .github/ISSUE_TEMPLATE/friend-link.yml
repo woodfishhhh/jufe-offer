@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        感谢申请加入江财OFFER友链。请完整填写以下信息，我们会在审核后更新友链页。
+        感谢申请加入江财OFFER友链。请先在你的友链页加入江财OFFER，机器人会在每天北京时间 00:00 检查反向链接并自动处理。
 
   - type: input
     id: name
@@ -21,6 +21,15 @@ body:
       label: 站点地址
       description: 请填写可以公开访问的完整 HTTPS 地址。
       placeholder: https://example.com/
+    validations:
+      required: true
+
+  - type: input
+    id: friend_page_url
+    attributes:
+      label: 友链页地址
+      description: 机器人会在这个页面检查江财OFFER的反向友链，请填写可公开访问的完整地址。
+      placeholder: https://example.com/links/
     validations:
       required: true
 

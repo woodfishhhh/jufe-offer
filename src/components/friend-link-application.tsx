@@ -13,6 +13,7 @@ const ISSUE_BASE_URL = "https://github.com/woodfishhhh/jufe-offer/issues/new";
 type FriendLinkDraft = {
   name: string;
   url: string;
+  friendPageUrl: string;
   avatar: string;
   description: string;
   contact: string;
@@ -25,6 +26,7 @@ type FieldErrors = Partial<Record<keyof FriendLinkDraft | "checks", string>>;
 const EMPTY_DRAFT: FriendLinkDraft = {
   name: "",
   url: "",
+  friendPageUrl: "",
   avatar: "",
   description: "",
   contact: "",
@@ -56,6 +58,9 @@ function validateDraft(draft: FriendLinkDraft) {
   const errors: FieldErrors = {};
   if (!draft.name.trim()) errors.name = "请填写站点名称。";
   if (!isPublicHttpUrl(draft.url)) errors.url = "请填写可公开访问的 HTTP(S) 地址。";
+  if (!isPublicHttpUrl(draft.friendPageUrl)) {
+    errors.friendPageUrl = "请填写可公开访问的友链页地址。";
+  }
   if (!isPublicHttpUrl(draft.avatar)) {
     errors.avatar = "请填写可公开访问的头像或站点图标地址。";
   }
@@ -78,6 +83,9 @@ function buildIssueUrl(draft: FriendLinkDraft) {
       "",
       "### 站点地址",
       normalizeLine(draft.url),
+      "",
+      "### 友链页地址",
+      normalizeLine(draft.friendPageUrl),
       "",
       "### 头像或站点图标",
       normalizeLine(draft.avatar),
@@ -193,6 +201,31 @@ export function FriendLinkApplication({
                   {errors.url}
                 </p>
               ) : null}
+            </div>
+
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="friend-page-url">友链页地址</Label>
+              <Input
+                id="friend-page-url"
+                type="url"
+                inputMode="url"
+                value={draft.friendPageUrl}
+                placeholder="https://example.com/links/"
+                aria-invalid={Boolean(errors.friendPageUrl)}
+                aria-describedby={
+                  errors.friendPageUrl ? "friend-page-url-error" : undefined
+                }
+                onChange={(event) => updateDraft("friendPageUrl", event.target.value)}
+              />
+              {errors.friendPageUrl ? (
+                <p id="friend-page-url-error" className="text-destructive text-xs">
+                  {errors.friendPageUrl}
+                </p>
+              ) : (
+                <p className="text-muted-foreground text-xs">
+                  机器人会在这个页面检查江财OFFER的反向友链。
+                </p>
+              )}
             </div>
 
             <div className="space-y-2 sm:col-span-2">

@@ -15,6 +15,8 @@
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset",
     "hash-password": "tsx scripts/hash-password.ts",
+    "friend-link-bot": "tsx scripts/friend-link-bot.ts",
+    "test:friend-links": "tsx --test scripts/friend-link-bot.test.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -48,6 +50,7 @@
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.7.1",
+    "playwright": "^1.60.0",
     "prisma": "^6.19.3",
     "tailwindcss": "^4",
     "tsx": "^4.20.5",

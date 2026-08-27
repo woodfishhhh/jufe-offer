@@ -182,6 +182,8 @@ src/data/friends.ts
 
 按现有对象补充 `name`、`description`、`url`、`category` 即可。可选 `icon` 字段；没有图标或图标加载失败时，页面会显示名称首字母。
 
+友链页的“提交友链”会打开预填好的 GitHub Issue。`.github/workflows/friend-link-bot.yml` 会在新 Issue 下回复申请说明，并在每天北京时间 00:00 检查待处理申请：确认对方友链页存在江财OFFER的反向链接后，机器人会把站点写入 `src/data/friends.ts` 的 `personal` 分组、提交到 `main`，再触发现有 CI/CD 部署。客户端渲染、懒加载或临时访问保护导致无法判断时，Issue 会保持打开并在下一轮重试。
+
 ## 替换 QQ 群号
 
 编辑：

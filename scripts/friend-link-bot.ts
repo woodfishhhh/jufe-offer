@@ -1,0 +1,891 @@
+#!/usr/bin/env node
+import { execFile } from "node:child_process";
+import { readFile, writeFile } from "node:fs/promises";
+import { isIP } from "node:net";
+import path from "node:path";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+
+import { chromium } from "playwright";
+
+const execFileAsync = promisify(execFile);
+
+export interface FriendLinkIssueData {
+  siteName: string;
+  siteUrl: string;
+  friendPageUrl: string;
+  avatarUrl: string;
+  description: string;
+  contact: string;
+}
+
+export interface OwnFriendLink {
+  name: string;
+  link: string;
+  avatar: string;
+  description: string;
+}
+
+export interface GitHubIssue {
+  body?: string | null;
+  created_at: string;
+  number: number;
+  pull_request?: unknown;
+  state?: string;
+  title: string;
+}
+
+export interface ReciprocalLinkCheckResult {
+  checkedUrls: string[];
+  found: boolean;
+  matchedUrl?: string;
+  indeterminate?: boolean;
+}
+
+export const JUFE_OFFER_FRIEND_LINK: OwnFriendLink = {
+  name: "江财OFFER",
+  link: "https://jufe.woodfish.site/",
+  avatar: "https://jufe.woodfish.site/0b9e02d4fcddecc48d4b61e79cb26f16_compressed.png",
+  description: "实习、竞赛、学习资源。",
+};
+
+const FRIEND_LINK_TITLE_PREFIXES = ["[友链申请]", "[Friend Link]"] as const;
+const INITIAL_COMMENT_MARKER = "<!-- jufe-offer-friend-bot:initial -->";
+const SUCCESS_COMMENT_MARKER = "<!-- jufe-offer-friend-bot:accepted -->";
+const REJECT_COMMENT_MARKER = "<!-- jufe-offer-friend-bot:rejected -->";
+const RETRY_COMMENT_MARKER = "<!-- jufe-offer-friend-bot:retry -->";
+const DEFAULT_WAIT_MS = 60 * 60 * 1000;
+const USER_AGENT = "JufeOfferFriendLinkBot/1.0";
+const FRIENDS_SOURCE_PATH = path.join("src", "data", "friends.ts");
+
+type FriendLinkSourceRecord = {
+  name: string;
+  url: string;
+};
+
+type IssueField = keyof FriendLinkIssueData;
+
+const FIELD_LABELS: Record<IssueField, string[]> = {
+  siteName: ["站点名称", "站点名", "site name", "name"],
+  siteUrl: ["站点地址", "站点链接", "site url", "site link", "url"],
+  friendPageUrl: [
+    "友链页地址",
+    "友链页链接",
+    "友链页面",
+    "友链页",
+    "friend page url",
+    "friend link page",
+    "friend page",
+  ],
+  avatarUrl: ["头像或站点图标", "头像链接", "头像", "avatar url", "avatar", "site icon"],
+  description: ["站点简介", "简介", "short description", "description", "descr"],
+  contact: ["联系方式", "称呼或联系方式", "your name / contact", "contact"],
+};
+
+function normalizeFieldLabel(value: string) {
+  return value
+    .replace(/[：:]$/, "")
+    .replace(/[*_`]/g, "")
+    .replace(/（可选）|\(optional\)/gi, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function fieldForLabel(label: string): IssueField | null {
+  const normalized = normalizeFieldLabel(label);
+  for (const [field, labels] of Object.entries(FIELD_LABELS) as Array<
+    [IssueField, string[]]
+  >) {
+    if (labels.some((candidate) => normalizeFieldLabel(candidate) === normalized)) {
+      return field;
+    }
+  }
+  return null;
+}
+
+function cleanIssueValue(value: string) {
+  const withoutComments = value.replace(/<!--[\s\S]*?-->/g, "").trim();
+  if (!withoutComments || /^[-*]\s*\[[ xX]\]/.test(withoutComments)) {
+    return "";
+  }
+  return withoutComments.replace(/^>\s?/, "").trim();
+}
+
+function readHeadingValues(lines: string[]) {
+  const fields = new Map<IssueField, string>();
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const heading = lines[index]?.match(/^\s*#{2,6}\s+(.+?)\s*$/);
+    if (!heading) {
+      continue;
+    }
+
+    const field = fieldForLabel(heading[1] ?? "");
+    if (!field) {
+      continue;
+    }
+
+    const values: string[] = [];
+    for (let valueIndex = index + 1; valueIndex < lines.length; valueIndex += 1) {
+      if (/^\s*#{2,6}\s+/.test(lines[valueIndex] ?? "")) {
+        break;
+      }
+      const value = cleanIssueValue(lines[valueIndex] ?? "");
+      if (value) {
+        values.push(value);
+      }
+    }
+
+    if (values.length > 0 && !fields.has(field)) {
+      fields.set(field, field === "description" ? values.join(" ") : values[0]!);
+    }
+  }
+
+  return fields;
+}
+
+export function parseFriendLinkIssueBody(body: string): FriendLinkIssueData | null {
+  const fields = new Map<IssueField, string>();
+  const lines = body.split(/\r?\n/);
+
+  for (const line of lines) {
+    const match = line.match(
+      /^\s*[-*]\s*(?:\*\*)?([^:：]+?)(?:\*\*)?\s*[:：]\s*(.*?)\s*$/,
+    );
+    if (!match) {
+      continue;
+    }
+    const field = fieldForLabel(match[1] ?? "");
+    const value = cleanIssueValue(match[2] ?? "");
+    if (field && value && !fields.has(field)) {
+      fields.set(field, value);
+    }
+  }
+
+  for (const [field, value] of readHeadingValues(lines)) {
+    if (!fields.has(field)) {
+      fields.set(field, value);
+    }
+  }
+
+  const parsed: FriendLinkIssueData = {
+    siteName: normalizeSingleLine(fields.get("siteName") ?? ""),
+    siteUrl: normalizeSingleLine(fields.get("siteUrl") ?? ""),
+    friendPageUrl: normalizeSingleLine(fields.get("friendPageUrl") ?? ""),
+    avatarUrl: normalizeSingleLine(fields.get("avatarUrl") ?? ""),
+    description: normalizeSingleLine(fields.get("description") ?? ""),
+    contact: normalizeSingleLine(fields.get("contact") ?? "未提供") || "未提供",
+  };
+
+  if (
+    !parsed.siteName ||
+    !parsed.siteUrl ||
+    !parsed.friendPageUrl ||
+    !parsed.description
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+export function buildInitialFriendLinkComment(ownLink: OwnFriendLink) {
+  return [
+    INITIAL_COMMENT_MARKER,
+    "收到友链申请啦！机器人每天北京时间 00:00 检验友链；新申请至少等待 1 小时，确认没有反链会自动关闭，暂时无法访问则会等下一轮重试。",
+    "",
+    "请先在您的站点友链页中加入江财OFFER：",
+    "",
+    `- 名字：${ownLink.name}`,
+    `- 链接：${ownLink.link}`,
+    `- 头像：${ownLink.avatar}`,
+    `- 描述：${ownLink.description}`,
+    "",
+    "请确认 Issue 里的友链页链接可以直接访问，并且该页面能看到江财OFFER的友链信息。检测会兼容客户端渲染和滚动懒加载。",
+    "",
+    "如果检测到反链，我会自动把你的站点加入江财OFFER友链并关闭 Issue。",
+  ].join("\n");
+}
+
+export function shouldReviewIssue(
+  createdAt: string,
+  now = new Date(),
+  waitMs = DEFAULT_WAIT_MS,
+) {
+  const createdTime = Date.parse(createdAt);
+  return Number.isFinite(createdTime) && now.getTime() - createdTime >= waitMs;
+}
+
+export function normalizePublicHttpUrl(value: string) {
+  let parsed: URL;
+  try {
+    parsed = new URL(value.trim());
+  } catch {
+    return null;
+  }
+
+  if (!isSafePublicHttpUrl(parsed)) {
+    return null;
+  }
+
+  if (!parsed.pathname) {
+    parsed.pathname = "/";
+  }
+  return parsed.toString();
+}
+
+function isSafePublicHttpUrl(parsed: URL) {
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    return false;
+  }
+
+  const hostname = parsed.hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "")
+    .replace(/\.$/, "");
+  if (!hostname || parsed.username || parsed.password) {
+    return false;
+  }
+
+  if (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname === "metadata.google.internal" ||
+    hostname.endsWith(".internal")
+  ) {
+    return false;
+  }
+
+  if (isUnsafeIpv4Host(hostname) || isUnsafeIpv6Host(hostname)) {
+    return false;
+  }
+
+  return true;
+}
+
+function isUnsafeIpv4Host(hostname: string) {
+  const parts = hostname.split(".");
+  if (parts.length !== 4 || parts.some((part) => !/^\d+$/.test(part))) {
+    return false;
+  }
+
+  const octets = parts.map(Number);
+  if (octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+    return true;
+  }
+
+  const [first, second] = octets as [number, number, number, number];
+  return (
+    first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    (first === 100 && second >= 64 && second <= 127) ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && (second === 0 || second === 168)) ||
+    (first === 198 && second >= 18 && second <= 19)
+  );
+}
+
+function isUnsafeIpv6Host(hostname: string) {
+  if (isIP(hostname) !== 6) {
+    return false;
+  }
+
+  const normalized = hostname.toLowerCase();
+  if (
+    normalized === "::" ||
+    normalized === "::1" ||
+    normalized.startsWith("::ffff:") ||
+    normalized.startsWith("fc") ||
+    normalized.startsWith("fd") ||
+    /^fe[89ab]/.test(normalized)
+  ) {
+    return true;
+  }
+
+  const mappedIpv4 = normalized.match(/:ffff:(\d+(?:\.\d+){3})$/);
+  return mappedIpv4 ? isUnsafeIpv4Host(mappedIpv4[1]!) : false;
+}
+
+export async function verifyReciprocalLink(
+  friendPageUrl: string,
+  ownLink: OwnFriendLink,
+  options: {
+    fetchText?: (url: string) => Promise<string>;
+    renderPageText?: (url: string) => Promise<string>;
+  } = {},
+): Promise<ReciprocalLinkCheckResult> {
+  const fetchText = options.fetchText ?? fetchPageText;
+  const renderPageText = options.renderPageText ?? renderPageWithBrowser;
+  const targetUrl = normalizePublicHttpUrl(friendPageUrl);
+  const checkedUrls = [targetUrl ?? friendPageUrl.trim()].filter(Boolean);
+
+  if (!targetUrl) {
+    return { checkedUrls, found: false };
+  }
+
+  let html = "";
+  try {
+    html = await fetchText(targetUrl);
+  } catch {
+    // Continue with a real browser: some sites need JavaScript or challenge cookies.
+  }
+
+  if (containsOwnFriendLink(html, ownLink)) {
+    return { checkedUrls, found: true, matchedUrl: targetUrl };
+  }
+
+  let renderedHtml = "";
+  try {
+    renderedHtml = await renderPageText(targetUrl);
+  } catch {
+    return { checkedUrls, found: false, indeterminate: true };
+  }
+
+  if (containsOwnFriendLink(renderedHtml, ownLink)) {
+    return { checkedUrls, found: true, matchedUrl: targetUrl };
+  }
+
+  return { checkedUrls, found: false };
+}
+
+function containsOwnFriendLink(html: string, ownLink: OwnFriendLink) {
+  const normalizedHtml = normalizeHtmlForSearch(stripImageSources(html));
+  const normalizedLink = normalizeComparableUrl(ownLink.link);
+  const linkWithoutSlash = normalizedLink.replace(/\/+$/, "");
+
+  if (
+    [normalizedLink, linkWithoutSlash].some(
+      (candidate) => candidate && normalizedHtml.includes(candidate),
+    )
+  ) {
+    return true;
+  }
+
+  return (
+    normalizedHtml.includes(normalizeSingleLine(ownLink.name).toLowerCase()) &&
+    normalizedHtml.includes(normalizeSingleLine(ownLink.description).toLowerCase())
+  );
+}
+
+function stripImageSources(html: string) {
+  return html.replace(
+    /\s(?:src|srcset|data-src|data-srcset|data-lazy-src|data-original|poster)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi,
+    " ",
+  );
+}
+
+function normalizeHtmlForSearch(html: string) {
+  return decodeHtmlEntities(html)
+    .replaceAll("\\/", "/")
+    .replace(/\/+(["'\s><])/g, "$1")
+    .toLowerCase();
+}
+
+function decodeHtmlEntities(value: string) {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+function normalizeComparableUrl(value: string) {
+  try {
+    const parsed = new URL(value.trim());
+    parsed.hash = "";
+    return parsed.toString().replace(/\/+$/, "").toLowerCase();
+  } catch {
+    return value.trim().replace(/\/+$/, "").toLowerCase();
+  }
+}
+
+async function fetchPageText(url: string) {
+  const response = await fetch(url, {
+    headers: {
+      accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "user-agent": USER_AGENT,
+    },
+    redirect: "follow",
+    signal: AbortSignal.timeout(15_000),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} from ${url}`);
+  }
+
+  return response.text();
+}
+
+async function renderPageWithBrowser(url: string) {
+  const executablePath = process.env.PLAYWRIGHT_BOT_EXECUTABLE_PATH?.trim();
+  const browser = await chromium.launch({
+    ...(executablePath ? { executablePath } : {}),
+    headless: true,
+  });
+
+  try {
+    const context = await browser.newContext({
+      serviceWorkers: "block",
+      userAgent: USER_AGENT,
+      viewport: { height: 900, width: 1280 },
+    });
+    const page = await context.newPage();
+    const response = await page.goto(url, {
+      timeout: 15_000,
+      waitUntil: "domcontentloaded",
+    });
+
+    if (!response || response.status() >= 400) {
+      throw new Error(`Rendered page returned an unusable response for ${url}`);
+    }
+
+    await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
+    await page.waitForTimeout(750);
+
+    for (let pass = 0; pass < 6; pass += 1) {
+      await page.evaluate(() => {
+        window.scrollTo(0, document.documentElement.scrollHeight);
+
+        for (const element of document.querySelectorAll<HTMLElement>("*")) {
+          const style = window.getComputedStyle(element);
+          if (
+            element.scrollHeight > element.clientHeight &&
+            (style.overflowY === "auto" || style.overflowY === "scroll")
+          ) {
+            element.scrollTop = element.scrollHeight;
+          }
+        }
+      });
+      await page.waitForTimeout(500);
+    }
+
+    const renderedHtml = await page.content();
+    if (isLikelyBotChallenge(renderedHtml)) {
+      throw new Error(`Rendered page appears to be a bot challenge for ${url}`);
+    }
+
+    return renderedHtml;
+  } finally {
+    await browser.close();
+  }
+}
+
+function isLikelyBotChallenge(html: string) {
+  const normalizedHtml = normalizeHtmlForSearch(html);
+  return (
+    normalizedHtml.includes("just a moment...") ||
+    normalizedHtml.includes("enable javascript and cookies to continue") ||
+    normalizedHtml.includes("cf-chl-")
+  );
+}
+
+function normalizeSingleLine(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function readStringField(source: string, field: "name" | "url") {
+  const pattern = new RegExp(`\\b${field}:\\s*"((?:\\\\.|[^"\\\\])*)"`);
+  const match = source.match(pattern);
+  if (!match) {
+    return "";
+  }
+
+  try {
+    return JSON.parse(`"${match[1]}"`) as string;
+  } catch {
+    return match[1] ?? "";
+  }
+}
+
+function readFriendLinksFromSource(source: string): FriendLinkSourceRecord[] {
+  const records: FriendLinkSourceRecord[] = [];
+  const objectPattern = /^[ \t]{2}\{\r?\n([\s\S]*?)^[ \t]{2}\},?/gm;
+
+  for (const match of source.matchAll(objectPattern)) {
+    const objectSource = match[1] ?? "";
+    const name = readStringField(objectSource, "name");
+    const url = readStringField(objectSource, "url");
+    if (name && url) {
+      records.push({ name, url });
+    }
+  }
+
+  return records;
+}
+
+export function mergeFriendLinkIntoSource(
+  source: string,
+  friend: FriendLinkIssueData,
+  group = "personal",
+) {
+  const normalizedUrl =
+    normalizePublicHttpUrl(friend.siteUrl) ?? normalizeSingleLine(friend.siteUrl);
+  const existing = readFriendLinksFromSource(source);
+  const duplicate = existing.some(
+    (item) =>
+      normalizeComparableUrl(item.url) === normalizeComparableUrl(normalizedUrl) ||
+      item.name.trim().toLowerCase() === friend.siteName.trim().toLowerCase(),
+  );
+
+  if (duplicate) {
+    return { changed: false, content: source };
+  }
+
+  const lineEnding = source.includes("\r\n") ? "\r\n" : "\n";
+  const closingToken = `${lineEnding}];`;
+  const closingIndex = source.lastIndexOf(closingToken);
+  const friendsExportIndex = source.lastIndexOf("export const friends");
+  if (closingIndex < friendsExportIndex) {
+    throw new Error(`Could not locate the closing bracket of ${FRIENDS_SOURCE_PATH}.`);
+  }
+
+  const avatar = normalizeSingleLine(friend.avatarUrl);
+  const lines = [
+    "  {",
+    `    name: ${JSON.stringify(normalizeSingleLine(friend.siteName))},`,
+    `    description: ${JSON.stringify(normalizeSingleLine(friend.description))},`,
+    `    url: ${JSON.stringify(normalizedUrl)},`,
+    `    domain: ${JSON.stringify(new URL(normalizedUrl).host.toLowerCase())},`,
+    `    group: ${JSON.stringify(group)},`,
+    ...(avatar ? [`    icon: ${JSON.stringify(avatar)},`] : []),
+    "  },",
+  ];
+  const entry = lines.join(lineEnding);
+  const prefix = source.slice(0, closingIndex);
+  const suffix = source.slice(closingIndex + closingToken.length - 2);
+  const separator = prefix.endsWith(lineEnding) ? "" : lineEnding;
+
+  return {
+    changed: true,
+    content: `${prefix}${separator}${entry}${lineEnding}${suffix}`,
+  };
+}
+
+class GitHubClient {
+  constructor(
+    private readonly token: string,
+    private readonly owner: string,
+    private readonly repo: string,
+  ) {}
+
+  async listOpenFriendIssues() {
+    const issues: GitHubIssue[] = [];
+    for (let page = 1; ; page += 1) {
+      const batch = await this.request<GitHubIssue[]>(
+        `/repos/${this.owner}/${this.repo}/issues?state=open&per_page=100&page=${page}`,
+      );
+      issues.push(...batch);
+      if (batch.length < 100) {
+        break;
+      }
+    }
+
+    return issues.filter(
+      (issue) => !issue.pull_request && isFriendLinkIssueTitle(issue.title),
+    );
+  }
+
+  async listComments(issueNumber: number) {
+    const comments: Array<{ body?: string | null }> = [];
+    for (let page = 1; ; page += 1) {
+      const batch = await this.request<Array<{ body?: string | null }>>(
+        `/repos/${this.owner}/${this.repo}/issues/${issueNumber}/comments?per_page=100&page=${page}`,
+      );
+      comments.push(...batch);
+      if (batch.length < 100) {
+        break;
+      }
+    }
+    return comments;
+  }
+
+  async addComment(issueNumber: number, body: string) {
+    await this.request(
+      `/repos/${this.owner}/${this.repo}/issues/${issueNumber}/comments`,
+      {
+        body: { body },
+        method: "POST",
+      },
+    );
+  }
+
+  async closeIssue(issueNumber: number, stateReason: "completed" | "not_planned") {
+    await this.request(`/repos/${this.owner}/${this.repo}/issues/${issueNumber}`, {
+      body: { state: "closed", state_reason: stateReason },
+      method: "PATCH",
+    });
+  }
+
+  private async request<T = unknown>(
+    apiPath: string,
+    options: { body?: unknown; method?: string } = {},
+  ): Promise<T> {
+    const response = await fetch(`https://api.github.com${apiPath}`, {
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      headers: {
+        accept: "application/vnd.github+json",
+        authorization: `Bearer ${this.token}`,
+        "content-type": "application/json",
+        "user-agent": USER_AGENT,
+        "x-github-api-version": "2022-11-28",
+      },
+      method: options.method ?? "GET",
+    });
+
+    if (!response.ok) {
+      throw new Error(`GitHub API ${response.status}: ${await response.text()}`);
+    }
+    if (response.status === 204) {
+      return undefined as T;
+    }
+    return (await response.json()) as T;
+  }
+}
+
+function isFriendLinkIssueTitle(title: string) {
+  return FRIEND_LINK_TITLE_PREFIXES.some((prefix) => title.startsWith(prefix));
+}
+
+async function runOpenedMode() {
+  const issue = await readEventIssue();
+  if (!issue || !isFriendLinkIssueTitle(issue.title)) {
+    console.log("No friend-link issue in event; skipping.");
+    return;
+  }
+
+  const github = createGitHubClient();
+  const comments = await github.listComments(issue.number);
+  if (comments.some((comment) => comment.body?.includes(INITIAL_COMMENT_MARKER))) {
+    console.log(`Initial friend-link comment already exists for #${issue.number}.`);
+    return;
+  }
+
+  await github.addComment(
+    issue.number,
+    buildInitialFriendLinkComment(JUFE_OFFER_FRIEND_LINK),
+  );
+  console.log(`Posted initial friend-link comment to #${issue.number}.`);
+}
+
+async function runReviewMode() {
+  const github = createGitHubClient();
+  const issues = await github.listOpenFriendIssues();
+  const now = new Date();
+
+  for (const issue of issues) {
+    if (!shouldReviewIssue(issue.created_at, now)) {
+      console.log(`Skipping #${issue.number}: still waiting for one-hour window.`);
+      continue;
+    }
+    await reviewIssue(issue, github);
+  }
+}
+
+async function reviewIssue(issue: GitHubIssue, github: GitHubClient) {
+  const comments = await github.listComments(issue.number);
+  if (comments.some((comment) => comment.body?.includes(SUCCESS_COMMENT_MARKER))) {
+    await github.closeIssue(issue.number, "completed");
+    console.log(`Closed already-accepted friend-link issue #${issue.number}.`);
+    return;
+  }
+  if (comments.some((comment) => comment.body?.includes(REJECT_COMMENT_MARKER))) {
+    await github.closeIssue(issue.number, "not_planned");
+    console.log(`Closed already-rejected friend-link issue #${issue.number}.`);
+    return;
+  }
+
+  const parsed = parseFriendLinkIssueBody(issue.body ?? "");
+  if (!parsed) {
+    await rejectIssue(
+      github,
+      issue.number,
+      "到检验时间啦，但这个 Issue 里的友链信息不完整，暂时无法自动处理。本 Issue 先关闭，可以补齐信息后重新提交。",
+    );
+    return;
+  }
+
+  const siteUrl = normalizePublicHttpUrl(parsed.siteUrl);
+  const friendPageUrl = normalizePublicHttpUrl(parsed.friendPageUrl);
+  const avatarUrl = parsed.avatarUrl
+    ? (normalizePublicHttpUrl(parsed.avatarUrl) ?? "")
+    : "";
+  if (!siteUrl || !friendPageUrl || (parsed.avatarUrl && !avatarUrl)) {
+    await rejectIssue(
+      github,
+      issue.number,
+      "站点地址、友链页地址和头像地址必须是可公开访问的 HTTP(S) 地址，且不能使用本地或内网地址。本 Issue 先关闭，修正后欢迎重新提交。",
+    );
+    return;
+  }
+
+  const friend = { ...parsed, siteUrl, friendPageUrl, avatarUrl };
+  const reciprocal = await verifyReciprocalLink(
+    friend.friendPageUrl,
+    JUFE_OFFER_FRIEND_LINK,
+  );
+  if (reciprocal.indeterminate) {
+    await deferIssue(github, issue.number, reciprocal.checkedUrls, comments);
+    return;
+  }
+  if (!reciprocal.found) {
+    await rejectIssue(
+      github,
+      issue.number,
+      [
+        "到检验时间啦，但暂时没有在你的站点检测到江财OFFER的友链。",
+        "",
+        `我检查过你填写的友链页链接：${reciprocal.checkedUrls.join(", ") || friend.friendPageUrl}`,
+        "",
+        "如果你的友链依赖客户端渲染或滚动懒加载，本机器人会先抓取 HTML，再尝试用浏览器加载并滚动页面；仍检测不到时才会视为没有反链。",
+        "",
+        "本 Issue 先关闭；加好反链后欢迎重新提交。",
+      ].join("\n"),
+    );
+    return;
+  }
+
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const sourcePath = path.join(repoRoot, FRIENDS_SOURCE_PATH);
+  const source = await readFile(sourcePath, "utf8");
+  const merged = mergeFriendLinkIntoSource(source, friend);
+  if (merged.changed) {
+    await writeFile(sourcePath, merged.content, "utf8");
+  }
+
+  const commitSha = await commitAndPushFriendLink(
+    repoRoot,
+    friend,
+    issue.number,
+    merged.changed,
+  );
+  await github.addComment(
+    issue.number,
+    [
+      SUCCESS_COMMENT_MARKER,
+      "检测到你已经加入江财OFFER友链，申请已自动通过。",
+      commitSha
+        ? `已提交到 main：${commitSha}，GitHub Actions 会继续构建并部署。`
+        : "友链数据之前已经存在，这次没有产生新的提交。",
+    ].join("\n\n"),
+  );
+  await github.closeIssue(issue.number, "completed");
+  console.log(`Accepted friend link issue #${issue.number}.`);
+}
+
+async function rejectIssue(github: GitHubClient, issueNumber: number, message: string) {
+  await github.addComment(issueNumber, `${REJECT_COMMENT_MARKER}\n${message}`);
+  await github.closeIssue(issueNumber, "not_planned");
+  console.log(`Rejected friend link issue #${issueNumber}.`);
+}
+
+async function deferIssue(
+  github: GitHubClient,
+  issueNumber: number,
+  checkedUrls: string[],
+  existingComments: Array<{ body?: string | null }>,
+) {
+  if (existingComments.some((comment) => comment.body?.includes(RETRY_COMMENT_MARKER))) {
+    console.log(`Keeping #${issueNumber} open: reciprocal-link check will be retried.`);
+    return;
+  }
+
+  await github.addComment(
+    issueNumber,
+    [
+      RETRY_COMMENT_MARKER,
+      "本轮友链检测暂时无法完成，站点可能暂时不可访问或触发了访问保护。",
+      "这个 Issue 不会因为这次异常被关闭，机器人会在下一轮自动重试。",
+      "",
+      `检查地址：${checkedUrls.join(", ") || "未解析出有效地址"}`,
+    ].join("\n\n"),
+  );
+  console.log(`Deferred friend-link check for #${issueNumber}.`);
+}
+
+async function commitAndPushFriendLink(
+  repoRoot: string,
+  friend: FriendLinkIssueData,
+  issueNumber: number,
+  changed: boolean,
+) {
+  if (!changed) {
+    return "";
+  }
+
+  await git(repoRoot, ["add", "--", FRIENDS_SOURCE_PATH]);
+  const staged = await git(repoRoot, ["diff", "--cached", "--name-only"]);
+  if (!staged.trim()) {
+    return "";
+  }
+
+  await git(repoRoot, [
+    "commit",
+    "-m",
+    `feat(friends): add ${friend.siteName} (#${issueNumber})`,
+  ]);
+  const sha = (await git(repoRoot, ["rev-parse", "--short", "HEAD"])).trim();
+  await git(repoRoot, ["push", "origin", "HEAD:main"]);
+  return sha;
+}
+
+async function git(cwd: string, args: string[]) {
+  const { stdout } = await execFileAsync("git", args, {
+    cwd,
+    encoding: "utf8",
+    maxBuffer: 10 * 1024 * 1024,
+  });
+  return stdout;
+}
+
+async function readEventIssue() {
+  const eventPath = process.env.GITHUB_EVENT_PATH;
+  if (!eventPath) {
+    return null;
+  }
+  const event = JSON.parse(await readFile(eventPath, "utf8")) as { issue?: GitHubIssue };
+  return event.issue ?? null;
+}
+
+function createGitHubClient() {
+  const token = process.env.GITHUB_TOKEN;
+  const repository = process.env.GITHUB_REPOSITORY;
+  if (!token) {
+    throw new Error("GITHUB_TOKEN is required.");
+  }
+  if (!repository || !repository.includes("/")) {
+    throw new Error("GITHUB_REPOSITORY must be owner/repo.");
+  }
+  const [owner, repo] = repository.split("/", 2) as [string, string];
+  return new GitHubClient(token, owner, repo);
+}
+
+export async function runFriendLinkBotCli(argv: string[]) {
+  const [mode] = argv;
+  if (mode === "opened") {
+    await runOpenedMode();
+    return 0;
+  }
+  if (mode === "review") {
+    await runReviewMode();
+    return 0;
+  }
+
+  console.error("usage: friend-link-bot <opened|review>");
+  return 2;
+}
+
+const currentFile = fileURLToPath(import.meta.url);
+const invokedFile = process.argv[1] ? path.resolve(process.argv[1]) : "";
+if (invokedFile && path.resolve(currentFile) === invokedFile) {
+  runFriendLinkBotCli(process.argv.slice(2))
+    .then((code) => process.exit(code))
+    .catch((error: unknown) => {
+      console.error(error instanceof Error ? error.message : error);
+      process.exit(1);
+    });
+}
