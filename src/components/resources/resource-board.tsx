@@ -527,7 +527,7 @@ export function ResourceBoard() {
       <div className="bg-background h-full w-full">
         <div className="relative h-full w-full overflow-hidden px-5 min-[640px]:px-8 min-[1024px]:pr-0">
           <div className="grid h-full items-start min-[1024px]:grid-cols-[220px_minmax(0,1fr)] min-[1024px]:gap-8">
-            <aside className="border-border hidden h-full border-r pt-[calc(var(--nav-float-inset)+var(--nav-island-height)+0.15rem)] min-[1024px]:block">
+            <aside className="border-border hidden h-full min-h-0 border-r pt-[calc(var(--nav-float-inset)+var(--nav-island-height)+0.15rem)] min-[1024px]:block">
               <div className="h-full overflow-y-auto pr-5">
                 <DirectoryNavigation
                   category={category}
