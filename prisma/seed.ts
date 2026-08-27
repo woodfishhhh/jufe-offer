@@ -2,18 +2,112 @@ import { PrismaClient, ResourceOrigin } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+const programmingToolResources = [
+  {
+    title: "Cursor",
+    description: "面向 AI 编程的代码编辑器，支持代码库理解、补全、重构和 Agent 工作流。",
+    url: "https://www.cursor.com/",
+    category: "编程工具",
+    tags: ["IDE", "AI", "Agent"],
+    isFeatured: true,
+  },
+  {
+    title: "Windsurf",
+    description: "面向 Agent 工作流的 AI IDE，支持上下文理解、代码生成与任务执行。",
+    url: "https://windsurf.com/",
+    category: "编程工具",
+    tags: ["IDE", "AI", "Agent"],
+    isFeatured: true,
+  },
+  {
+    title: "IntelliJ IDEA",
+    description:
+      "面向 Java 和 Kotlin 开发的 IDE，提供代码分析、调试、测试与项目管理能力。",
+    url: "https://www.jetbrains.com/idea/",
+    category: "编程工具",
+    tags: ["IDE", "Java", "Kotlin"],
+    isFeatured: true,
+  },
+  {
+    title: "PyCharm",
+    description: "面向 Python 开发的 IDE，支持项目管理、调试、测试和 Web 开发。",
+    url: "https://www.jetbrains.com/pycharm/",
+    category: "编程工具",
+    tags: ["IDE", "Python", "开发环境"],
+    isFeatured: true,
+  },
+  {
+    title: "CLion",
+    description: "面向 C 和 C++ 的 IDE，提供代码分析、调试、测试和 CMake 支持。",
+    url: "https://www.jetbrains.com/clion/",
+    category: "编程工具",
+    tags: ["IDE", "C++", "CMake"],
+    isFeatured: false,
+  },
+  {
+    title: "Visual Studio",
+    description: "面向 .NET、C++ 等技术栈的完整 IDE，适合 Windows、云服务与跨平台开发。",
+    url: "https://visualstudio.microsoft.com/",
+    category: "编程工具",
+    tags: ["IDE", ".NET", "C++"],
+    isFeatured: false,
+  },
+  {
+    title: "GitHub Copilot",
+    description: "覆盖 IDE、GitHub 和命令行的 AI 编程助手，支持补全、问答与代理任务。",
+    url: "https://github.com/features/copilot",
+    category: "编程工具",
+    tags: ["AI", "Agent", "GitHub"],
+    isFeatured: true,
+  },
+  {
+    title: "OpenAI Codex",
+    description: "面向软件开发任务的 AI Agent，可在编辑器、终端和网页工作流中协作编码。",
+    url: "https://openai.com/codex/",
+    category: "编程工具",
+    tags: ["AI", "Agent", "终端"],
+    isFeatured: true,
+  },
+  {
+    title: "Claude Code",
+    description: "面向代码库的终端与 IDE 编程 Agent，适合理解项目、修改代码和运行验证。",
+    url: "https://www.anthropic.com/claude-code",
+    category: "编程工具",
+    tags: ["AI", "Agent", "终端"],
+    isFeatured: true,
+  },
+  {
+    title: "OpenCode",
+    description: "开源终端编程 Agent，适合在命令行中进行代码理解、修改和验证。",
+    url: "https://opencode.ai/",
+    category: "编程工具",
+    tags: ["AI", "Agent", "终端", "开源"],
+    isFeatured: false,
+  },
+  {
+    title: "Grok",
+    description:
+      "xAI 的 Grok Build 终端编程 Agent，适合探索代码库理解、任务执行与开发工作流。",
+    url: "https://docs.x.ai/build/overview",
+    category: "编程工具",
+    tags: ["AI", "Agent", "终端"],
+    isFeatured: true,
+  },
+];
+
 const resources = [
   {
     title: "GitHub",
     description: "全球最大的开源代码托管平台，适合阅读项目、提交 Issue 和参与开源。",
     url: "https://github.com",
-    category: "开源项目",
+    category: "校内开源项目",
     tags: ["开源", "协作", "代码托管"],
     isFeatured: true,
   },
   {
     title: "MDN Web Docs",
-    description: "Mozilla 维护的 Web 技术文档，查询 HTML、CSS、JavaScript 和浏览器 API 的首选。",
+    description:
+      "Mozilla 维护的 Web 技术文档，查询 HTML、CSS、JavaScript 和浏览器 API 的首选。",
     url: "https://developer.mozilla.org/zh-CN/",
     category: "编程学习",
     tags: ["前端", "文档", "Web"],
@@ -55,7 +149,7 @@ const resources = [
     title: "开源之夏",
     description: "中科院软件所发起的开源贡献活动，学生可申请项目并获得社区导师指导。",
     url: "https://summer-ospp.ac.cn",
-    category: "开源项目",
+    category: "校内开源项目",
     tags: ["开源", "实习经历", "社区"],
     isFeatured: true,
   },
@@ -71,7 +165,7 @@ const resources = [
     title: "HelloGitHub",
     description: "分享有趣、入门友好的开源项目，适合扩展技术视野。",
     url: "https://hellogithub.com",
-    category: "开源项目",
+    category: "校内开源项目",
     tags: ["开源", "发现", "入门"],
     isFeatured: false,
   },
@@ -99,6 +193,7 @@ const resources = [
     tags: ["编辑器", "工具", "开发环境"],
     isFeatured: false,
   },
+  ...programmingToolResources,
   {
     title: "Tech Interview Handbook",
     description: "开源面试准备手册，覆盖算法、系统设计和求职流程。",

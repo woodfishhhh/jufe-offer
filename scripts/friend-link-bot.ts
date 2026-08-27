@@ -345,7 +345,7 @@ export function buildInitialFriendLinkComment(ownLink: OwnFriendLink) {
 export function buildInitialOpenSourceProjectComment() {
   return [
     PROJECT_INITIAL_COMMENT_MARKER,
-    "收到开源项目提交啦！机器人每天北京时间 00:00 检查待处理申请；新申请至少等待 1 小时。",
+    "收到校内开源项目提交啦！机器人每天北京时间 00:00 检查待处理申请；新申请至少等待 1 小时。",
     "",
     "本页面只收录由本校同学创立或参与的开源项目。请确保项目地址可以公开访问，并在 Issue 中说明你与项目的关系，保留并勾选提交确认。",
     "",
@@ -402,7 +402,7 @@ export function buildOpenSourceProjectMigration(
     `  ${sqlString(normalizeSingleLine(project.projectName))},`,
     `  ${sqlString(normalizeSingleLine(project.description))},`,
     `  ${sqlString(projectUrl)},`,
-    `  ${sqlString("开源项目")},`,
+    `  ${sqlString("校内开源项目")},`,
     `  ${sqlString(tags)},`,
     "  0,",
     "  'MANUAL',",
@@ -1091,7 +1091,7 @@ async function reviewOpenSourceProjectIssue(issue: GitHubIssue, github: GitHubCl
     issue.number,
     [
       PROJECT_SUCCESS_COMMENT_MARKER,
-      "项目提交已通过自动校验，已加入开源项目资源页。",
+      "项目提交已通过自动校验，已加入校内开源项目资源页。",
       commitSha
         ? `已提交到 main：${commitSha}，GitHub Actions 会继续构建、执行数据库迁移并部署。`
         : "该 Issue 对应的项目提交已经存在，这次没有产生新的提交。",

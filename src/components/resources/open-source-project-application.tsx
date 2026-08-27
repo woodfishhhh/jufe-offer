@@ -72,7 +72,7 @@ function buildIssueUrl(draft: OpenSourceProjectDraft) {
   const params = new URLSearchParams({
     title: `[开源项目提交] ${name}`,
     body: [
-      "## 开源项目提交",
+      "## 校内开源项目提交",
       "",
       "### 项目名称",
       name,
@@ -141,7 +141,7 @@ export function OpenSourceProjectApplication({ className }: { className?: string
         提交自己的项目
       </Button>
 
-      <Modal open={open} title="提交开源项目" onClose={() => setOpen(false)} wide>
+      <Modal open={open} title="提交校内开源项目" onClose={() => setOpen(false)} wide>
         <form className="space-y-5" noValidate onSubmit={handleSubmit}>
           <div className="border-border bg-muted/45 rounded-2xl border px-4 py-3">
             <p className="font-medium">填写后将打开预填好的 GitHub Issue 草稿</p>

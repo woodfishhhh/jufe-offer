@@ -87,7 +87,7 @@ test("requires an explicit friend page URL", () => {
 test("parses the open-source project submission body", () => {
   const parsed = parseOpenSourceProjectIssueBody(
     [
-      "## 开源项目提交",
+      "## 校内开源项目提交",
       "",
       "### 项目名称",
       "江财校园助手",
@@ -140,7 +140,7 @@ test("builds a stable, guarded migration for an open-source project", () => {
   );
   assert.match(migration.content, /open_source_issue_42/);
   assert.match(migration.content, /O''Reilly/);
-  assert.match(migration.content, /'开源项目'/);
+  assert.match(migration.content, /'校内开源项目'/);
   assert.match(migration.content, /lower\(rtrim\("url", '\/'\)\)/);
 });
 

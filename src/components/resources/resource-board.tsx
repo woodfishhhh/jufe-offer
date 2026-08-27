@@ -681,7 +681,7 @@ export function ResourceBoard() {
               </div>
 
               <div className="min-[1024px]:pr-8">
-                {category === "开源项目" ? <OpenSourceProjectNotice /> : null}
+                {category === "校内开源项目" ? <OpenSourceProjectNotice /> : null}
 
                 {loading ? (
                   <div aria-live="polite" className="sr-only">

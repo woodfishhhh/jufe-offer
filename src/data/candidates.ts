@@ -79,16 +79,13 @@ export const CANDIDATE_SOURCE_TYPE_LABELS: Record<CandidateSourceTypeValue, stri
   MANUAL_RESEARCH: "人工检索",
 };
 
-export const CANDIDATE_RESOURCE_CATEGORY: Record<
-  CandidateCategoryValue,
-  Category
-> = {
+export const CANDIDATE_RESOURCE_CATEGORY: Record<CandidateCategoryValue, Category> = {
   INTERNSHIP: "实习与校招",
   CAMPUS_RECRUITMENT: "实习与校招",
   REFERRAL: "实习与校招",
   COMPETITION: "竞赛",
   HACKATHON: "Hackathon",
-  OPEN_SOURCE_RESOURCE: "开源项目",
+  OPEN_SOURCE_RESOURCE: "校内开源项目",
   TRAINING: "训练营",
   PROGRAMMING_LEARNING: "编程学习",
   LEARNING_PATH: "学习路线",
