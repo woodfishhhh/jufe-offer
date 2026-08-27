@@ -6,6 +6,7 @@ import { DeferredCommunityPanel } from "@/components/home/deferred-community-pan
 import { EmblemCanvas } from "@/components/home/emblem-canvas";
 import { HomeCategoryGrid } from "@/components/home/home-category-grid";
 import { HomeDeck } from "@/components/home/home-deck";
+import { TiltLink } from "@/components/home/tilt-link";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -199,7 +200,7 @@ export default function HomePage() {
               ember={1.8}
               scorch={0}
             >
-              <Link
+              <TiltLink
                 href="https://github.com/woodfishhhh/jufe-offer"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -225,7 +226,7 @@ export default function HomePage() {
                   <span aria-hidden="true">/</span>
                   <span>TypeScript</span>
                 </span>
-              </Link>
+              </TiltLink>
             </FlameWrap>
           </ScrollReveal>
 
