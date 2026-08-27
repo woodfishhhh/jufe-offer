@@ -9,6 +9,52 @@ import { resourceInputSchema, resourceQuerySchema } from "@/schemas/resource";
 
 export const dynamic = "force-dynamic";
 
+function shouldReadRemoteResources() {
+  return process.env.USE_REMOTE_RESOURCES?.trim().toLowerCase() === "true";
+}
+
+async function readRemoteResources(request: NextRequest) {
+  const remoteBaseUrl = process.env.REMOTE_RESOURCE_API_BASE_URL?.trim();
+  if (!remoteBaseUrl) {
+    return jsonError(
+      "已开启线上资源读取，但未配置 REMOTE_RESOURCE_API_BASE_URL。",
+      500,
+    );
+  }
+
+  try {
+    const remoteUrl = new URL("/api/resources", remoteBaseUrl);
+    if (!["http:", "https:"].includes(remoteUrl.protocol)) {
+      return jsonError("线上资源地址必须使用 HTTP 或 HTTPS。", 500);
+    }
+
+    remoteUrl.search = request.nextUrl.search;
+    if (remoteUrl.origin === request.nextUrl.origin) {
+      return jsonError("线上资源地址不能指向当前站点，避免代理循环。", 500);
+    }
+
+    const upstream = await fetch(remoteUrl, {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(8_000),
+    });
+    const contentType = upstream.headers.get("content-type") ?? "";
+    if (!contentType.toLowerCase().includes("application/json")) {
+      return jsonError("线上资源接口返回了无法识别的数据。", 502);
+    }
+
+    return new Response(await upstream.text(), {
+      status: upstream.status,
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        "x-jufe-resource-source": "remote",
+      },
+    });
+  } catch {
+    return jsonError("线上资源暂时无法读取，请检查网络或远程地址。", 502);
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const parsed = resourceQuerySchema.safeParse({
@@ -20,6 +66,10 @@ export async function GET(request: NextRequest) {
 
     if (!parsed.success) {
       return zodErrorResponse(parsed.error);
+    }
+
+    if (shouldReadRemoteResources()) {
+      return readRemoteResources(request);
     }
 
     const { q, category, featured, sort } = parsed.data;

@@ -61,7 +61,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="bg-background text-foreground selection:bg-foreground selection:text-background flex min-h-full flex-col font-sans">
         <AuthProvider>
           <SiteHeader />
-          <Glitch className="relative flex min-h-0 flex-1 flex-col">
+          <Glitch interval={9} className="relative flex min-h-0 flex-1 flex-col">
             <main className="min-h-0 flex-1">{children}</main>
             <SiteFooter />
           </Glitch>

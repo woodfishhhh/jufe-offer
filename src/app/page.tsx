@@ -4,8 +4,11 @@ import { FlameWrap } from "@/components/canvasui/FlameWrap";
 import { FlowingWaves } from "@/components/flowing-waves";
 import { DeferredCommunityPanel } from "@/components/home/deferred-community-panel";
 import { EmblemCanvas } from "@/components/home/emblem-canvas";
+import { CampusProjectsPanel } from "@/components/home/campus-projects-panel";
+import { CareerRoadmapPanel } from "@/components/home/career-roadmap-panel";
 import { HomeCategoryGrid } from "@/components/home/home-category-grid";
 import { HomeDeck } from "@/components/home/home-deck";
+import { HeroProximityTitle } from "@/components/home/hero-proximity-title";
 import { TiltLink } from "@/components/home/tilt-link";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -18,9 +21,9 @@ export const metadata = {
   description: site.tagline,
 };
 
-export default function HomePage() {
+export function HomePageContent({ initialIndex = 0 }: { initialIndex?: number }) {
   return (
-    <HomeDeck className="bg-background text-foreground">
+    <HomeDeck className="bg-background text-foreground" initialIndex={initialIndex}>
       <section className="border-border relative overflow-hidden border-b lg:h-full lg:min-h-0">
         <div
           className="pointer-events-none absolute inset-0 overflow-hidden"
@@ -36,10 +39,7 @@ export default function HomePage() {
             <p className="text-muted-foreground text-xs font-medium tracking-[0.18em] uppercase">
               JUFE / Student resource index
             </p>
-            <h1 className="font-display mt-4 text-[64px] leading-[0.78] font-bold tracking-[-0.075em] sm:mt-7 sm:text-[112px] lg:text-[138px]">
-              <span className="block">江财</span>
-              <span className="ml-[0.38em] block">OFFER</span>
-            </h1>
+            <HeroProximityTitle />
             <p className="text-muted-foreground mt-6 max-w-sm text-base leading-7 sm:mt-10 sm:text-lg sm:leading-8">
               {site.tagline}
             </p>
@@ -87,11 +87,15 @@ export default function HomePage() {
 
       <DeferredCommunityPanel />
 
+      <CareerRoadmapPanel />
+
+      <CampusProjectsPanel />
+
       <section className="border-border relative overflow-hidden border-b lg:h-full lg:min-h-0">
         <div className="mx-auto flex h-full max-w-[1280px] flex-col justify-center px-5 py-8 sm:px-8 sm:py-12 lg:py-14">
           <ScrollReveal className="flex flex-wrap items-end justify-between gap-3 sm:gap-5">
             <div className="flex items-end gap-5">
-              <span className="text-muted-foreground pb-1 font-mono text-xs">03</span>
+              <span className="text-muted-foreground pb-1 font-mono text-xs">05</span>
               <div>
                 <p className="text-muted-foreground mb-3 text-xs tracking-[0.18em] uppercase">
                   Resource index
@@ -150,7 +154,7 @@ export default function HomePage() {
           <ScrollReveal className="grid items-end gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(380px,0.95fr)] lg:gap-12">
             <div>
               <div className="flex items-end gap-5">
-                <span className="pb-1 font-mono text-xs text-white/40">04</span>
+                <span className="pb-1 font-mono text-xs text-white/40">06</span>
                 <div>
                   <p className="mb-3 text-xs tracking-[0.18em] text-white/48 uppercase">
                     Open source / build together
@@ -267,4 +271,8 @@ export default function HomePage() {
       </section>
     </HomeDeck>
   );
+}
+
+export default function HomePage() {
+  return <HomePageContent />;
 }

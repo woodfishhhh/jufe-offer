@@ -71,22 +71,29 @@ function canConsume(states: ScrollableState[], deltaY: number) {
 function isFormTarget(target: EventTarget | null) {
   return (
     target instanceof Element &&
-    Boolean(target.closest("input, textarea, select, button, [contenteditable]"))
+    Boolean(
+      target.closest(
+        "input, textarea, select, button, [contenteditable], [data-home-deck-interactive]",
+      ),
+    )
   );
 }
 
 export function HomeDeck({
   children,
   className,
+  initialIndex = 0,
 }: {
   children: ReactNode;
   className?: string;
+  initialIndex?: number;
 }) {
   const slides = Children.toArray(children);
+  const normalizedInitialIndex = Math.max(0, Math.min(slides.length - 1, initialIndex));
   const viewportRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const goToSlideRef = useRef<(index: number) => void>(() => {});
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(normalizedInitialIndex);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -97,7 +104,7 @@ export function HomeDeck({
 
     window.scrollTo(0, 0);
 
-    let currentIndex = 0;
+    let currentIndex = normalizedInitialIndex;
     let locked = false;
     let unlockTimer: number | null = null;
     let touchStartY = 0;
@@ -151,6 +158,14 @@ export function HomeDeck({
     function syncPosition(index: number, immediate = false) {
       currentIndex = Math.max(0, Math.min(slides.length - 1, index));
       setActiveIndex(currentIndex);
+      const pagePath = `/${currentIndex + 1}`;
+      if (window.location.pathname !== pagePath) {
+        window.history.replaceState(
+          window.history.state,
+          "",
+          `${pagePath}${window.location.search}`,
+        );
+      }
       locked = true;
       deckViewport.dataset.transitioning = "true";
       document.dispatchEvent(new Event(TRANSITION_START_EVENT));
@@ -200,7 +215,14 @@ export function HomeDeck({
     };
 
     function handleWheel(event: WheelEvent) {
-      if (Math.abs(event.deltaY) < WHEEL_THRESHOLD || isFormTarget(event.target)) return;
+      const wheelPassTarget = getTargetElement(event.target)?.closest(
+        "[data-home-deck-wheel-pass]",
+      );
+      if (
+        Math.abs(event.deltaY) < WHEEL_THRESHOLD ||
+        (!wheelPassTarget && isFormTarget(event.target))
+      )
+        return;
       if (canConsume(getScrollableStates(event.target, deckViewport), event.deltaY))
         return;
       const direction = event.deltaY > 0 ? 1 : -1;
@@ -237,7 +259,11 @@ export function HomeDeck({
     }
 
     function handleTouchEnd(event: TouchEvent) {
-      if (touchTarget instanceof Element && touchTarget.closest("canvas")) return;
+      if (
+        touchTarget instanceof Element &&
+        touchTarget.closest("canvas, [data-home-deck-interactive]")
+      )
+        return;
       const deltaY = touchStartY - (event.changedTouches[0]?.clientY ?? touchStartY);
       if (Math.abs(deltaY) < TOUCH_THRESHOLD || canConsume(touchScrollableStates, deltaY))
         return;
@@ -282,7 +308,15 @@ export function HomeDeck({
     deckViewport.addEventListener("touchstart", handleTouchStart, { passive: true });
     deckViewport.addEventListener("touchend", handleTouchEnd, { passive: true });
     window.addEventListener("keydown", handleKeydown);
-    deckTrack.style.transform = "translate3d(0, 0, 0)";
+    deckTrack.style.transform = `translate3d(0, ${-deckViewport.clientHeight * currentIndex}px, 0)`;
+    const initialPagePath = `/${currentIndex + 1}`;
+    if (window.location.pathname !== initialPagePath) {
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${initialPagePath}${window.location.search}`,
+      );
+    }
 
     return () => {
       destroyed = true;
@@ -301,7 +335,7 @@ export function HomeDeck({
       activeGsap?.killTweensOf(deckTrack);
       goToSlideRef.current = () => {};
     };
-  }, [slides.length]);
+  }, [normalizedInitialIndex, slides.length]);
 
   return (
     <div className={cn("home-deck", className)}>
