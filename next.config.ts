@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const htmlInCanvasOriginTrialToken = process.env.HTML_IN_CANVAS_OT_TOKEN?.trim();
+
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
@@ -11,7 +13,7 @@ const nextConfig: NextConfig = {
   },
   serverExternalPackages: ["@prisma/client", "prisma"],
   async headers() {
-    return [
+    const headers = [
       {
         source: "/:asset(.*_compressed\\.png)",
         headers: [
@@ -31,6 +33,20 @@ const nextConfig: NextConfig = {
         ],
       },
     ];
+
+    if (htmlInCanvasOriginTrialToken) {
+      headers.unshift({
+        source: "/:path*",
+        headers: [
+          {
+            key: "Origin-Trial",
+            value: htmlInCanvasOriginTrialToken,
+          },
+        ],
+      });
+    }
+
+    return headers;
   },
 };
 

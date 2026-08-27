@@ -75,6 +75,7 @@ jobs:
           ADMIN_USERNAME: ci
           APP_REVISION: ${{ github.sha }}
           DATABASE_URL: file:./ci.db
+          HTML_IN_CANVAS_OT_TOKEN: ${{ secrets.HTML_IN_CANVAS_OT_TOKEN }}
           NEXT_PUBLIC_SITE_URL: https://jufe.woodfish.site
           SESSION_SECRET: ci-only-session-secret-not-used-in-production
 

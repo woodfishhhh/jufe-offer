@@ -54,6 +54,7 @@ ADMIN_PASSWORD_HASH=
 SESSION_SECRET=
 OPENCLAW_INGEST_TOKEN=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
+HTML_IN_CANVAS_OT_TOKEN=
 ```
 
 `SESSION_SECRET` 请换成足够长的随机字符串，例如：
@@ -238,6 +239,7 @@ ADMIN_PASSWORD_HASH=生产环境哈希
 SESSION_SECRET=生产环境随机密钥
 OPENCLAW_INGEST_TOKEN=生产环境独立随机密钥
 NEXT_PUBLIC_SITE_URL=https://your-domain.example
+HTML_IN_CANVAS_OT_TOKEN=Chrome Origin Trial token（可选）
 ```
 
 5. 安装依赖、迁移数据库并构建：
@@ -295,8 +297,17 @@ Copy-Item prisma/dev.db "backups/dev-$(Get-Date -Format yyyyMMdd).db"
 - `DEPLOY_USER`
 - `DEPLOY_SSH_KEY`
 - `DEPLOY_KNOWN_HOSTS`
+- `HTML_IN_CANVAS_OT_TOKEN`（可选；生产构建时注入，不能只在服务器运行时环境中填写）
 
 服务器端部署账号可以写入 `/opt/jufe-offer`，并且只被授权管理 `jufe-offer@blue.service`、`jufe-offer@green.service` 和调用固定 Nginx slot helper。应用仍由非 root 用户运行，生产环境变量和数据库不会进入构建产物。
+
+### HTML-in-Canvas 渐进增强
+
+首页的 HTML-in-Canvas 只作为 Chrome Origin Trial 增强层。配置
+`HTML_IN_CANVAS_OT_TOKEN` 后，CI 构建会在所有响应上返回 `Origin-Trial` Header；
+Safari、Firefox、未命中 Trial、低性能设备和 WebGL 初始化失败时，会保留普通 DOM 内容，
+不会因为实验 API 不可用而出现空白首页。Origin Trial token 会按设计出现在响应 Header 中，
+它不是应用登录密钥；仍需注意 token 的 origin 和有效期。
 
 ## 管理员使用方式
 
