@@ -1,0 +1,67 @@
+name: 提交开源项目
+description: 推荐由江财同学创立或参与的开源项目
+title: "[开源项目提交] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢提交江财同学参与的开源项目。请填写真实、可公开访问的信息，项目会经过整理后展示在资源页。
+
+  - type: input
+    id: name
+    attributes:
+      label: 项目名称
+      placeholder: 例如：江财校园助手
+    validations:
+      required: true
+
+  - type: input
+    id: url
+    attributes:
+      label: 项目地址
+      description: 请填写仓库或项目主页的公开 HTTP(S) 地址。
+      placeholder: https://github.com/your-name/project
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 项目简介
+      description: 建议控制在 80 个字以内，说明项目解决的问题和适合的使用场景。
+      placeholder: 用一两句话介绍你的项目
+    validations:
+      required: true
+
+  - type: input
+    id: relation
+    attributes:
+      label: 你与项目的关系
+      description: 例如发起人、核心贡献者、参与开发者。
+      placeholder: 发起人 / 核心贡献者 / 参与开发者 / 推荐人
+    validations:
+      required: true
+
+  - type: input
+    id: tags
+    attributes:
+      label: 项目标签
+      description: 可选，多个标签请用逗号分隔，例如校园、工具、前端。
+      placeholder: 校园、工具、前端
+
+  - type: input
+    id: contact
+    attributes:
+      label: 联系方式
+      description: 可选，仅用于审核时联系。
+      placeholder: GitHub 用户名、邮箱或其他联系方式
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交确认
+      options:
+        - label: 我确认项目由本校同学创立或参与，且项目地址可以公开访问。
+          required: true
+        - label: 我同意江财OFFER根据页面展示需要调整项目简介或标签。
+          required: true

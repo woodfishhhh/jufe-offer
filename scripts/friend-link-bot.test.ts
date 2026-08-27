@@ -3,9 +3,12 @@ import { test } from "node:test";
 
 import {
   buildInitialFriendLinkComment,
+  buildInitialOpenSourceProjectComment,
+  buildOpenSourceProjectMigration,
   JUFE_OFFER_FRIEND_LINK,
   mergeFriendLinkIntoSource,
   normalizePublicHttpUrl,
+  parseOpenSourceProjectIssueBody,
   parseFriendLinkIssueBody,
   shouldReviewIssue,
   verifyReciprocalLink,
@@ -33,6 +36,10 @@ test("parses the prefilled markdown body used by the application form", () => {
       "",
       "### 联系方式",
       "example",
+      "",
+      "### 提交确认",
+      "- [x] 我确认项目由本校同学创立或参与，且项目地址可以公开访问。",
+      "- [x] 我同意江财OFFER根据页面展示需要调整项目简介或标签。",
     ].join("\n"),
   );
 
@@ -75,6 +82,75 @@ test("requires an explicit friend page URL", () => {
   );
 
   assert.equal(parsed, null);
+});
+
+test("parses the open-source project submission body", () => {
+  const parsed = parseOpenSourceProjectIssueBody(
+    [
+      "## 开源项目提交",
+      "",
+      "### 项目名称",
+      "江财校园助手",
+      "",
+      "### 项目地址",
+      "https://github.com/example/jufe-helper",
+      "",
+      "### 项目简介",
+      "为江财同学提供校园信息查询与学习工具。",
+      "",
+      "### 与项目的关系",
+      "发起人、核心贡献者",
+      "",
+      "### 项目标签",
+      "校园, 开源, #工具",
+      "",
+      "### 联系方式",
+      "example",
+    ].join("\n"),
+  );
+
+  assert.deepEqual(parsed, {
+    projectName: "江财校园助手",
+    projectUrl: "https://github.com/example/jufe-helper",
+    description: "为江财同学提供校园信息查询与学习工具。",
+    relation: "发起人、核心贡献者",
+    tags: ["校园", "开源", "工具"],
+    contact: "example",
+  });
+});
+
+test("builds a stable, guarded migration for an open-source project", () => {
+  const migration = buildOpenSourceProjectMigration(
+    {
+      projectName: "O'Reilly 江财工具",
+      projectUrl: "https://github.com/example/jufe-helper",
+      description: "帮助同学整理开源项目。",
+      relation: "参与开发者",
+      tags: ["开源", "工具"],
+      contact: "example",
+    },
+    42,
+    new Date("2026-08-27T10:11:12.000Z"),
+  );
+
+  assert.equal(migration.directoryName, "20260827101112_add_open_source_project_42");
+  assert.equal(
+    migration.relativePath.replaceAll("\\", "/"),
+    "prisma/migrations/20260827101112_add_open_source_project_42/migration.sql",
+  );
+  assert.match(migration.content, /open_source_issue_42/);
+  assert.match(migration.content, /O''Reilly/);
+  assert.match(migration.content, /'开源项目'/);
+  assert.match(migration.content, /lower\(rtrim\("url", '\/'\)\)/);
+});
+
+test("builds the open-source project review reminder", () => {
+  const comment = buildInitialOpenSourceProjectComment();
+
+  assert.match(comment, /北京时间 00:00/);
+  assert.match(comment, /至少等待 1 小时/);
+  assert.match(comment, /本校同学创立或参与/);
+  assert.match(comment, /加入资源页/);
 });
 
 test("builds the reciprocal-link reminder comment", () => {

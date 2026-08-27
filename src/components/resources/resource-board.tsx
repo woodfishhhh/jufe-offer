@@ -11,11 +11,13 @@ import {
 import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
 import { MasonryGrid } from "@egjs/react-grid";
-import { Columns3, List, Menu, Search, Star, X } from "lucide-react";
+import { Columns3, GitFork, List, Menu, Search, Star } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth-provider";
+import { OpenSourceProjectApplication } from "@/components/resources/open-source-project-application";
 import { ResourceCard, type ResourceView } from "@/components/resources/resource-card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import {
@@ -26,7 +28,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CATEGORY_VALUES } from "@/data/categories";
+import { RESOURCE_DIRECTORY_CATEGORY_VALUES } from "@/data/categories";
 import {
   getCachedResourceList,
   invalidateResourceListCache,
@@ -187,6 +189,61 @@ function MasonryResults({
   );
 }
 
+function OpenSourceProjectNotice() {
+  return (
+    <Card
+      aria-labelledby="open-source-project-notice-title"
+      className="border-border bg-card relative my-5 gap-0 overflow-hidden py-0 shadow-[0_18px_50px_-36px_rgb(0_0_0/0.6)]"
+    >
+      <div
+        aria-hidden="true"
+        className="absolute inset-y-0 left-0 w-1 bg-[var(--brand-red)]"
+      />
+      <CardHeader className="gap-3 px-5 pt-5 pb-4 sm:px-6 sm:pt-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="bg-foreground text-background flex size-9 shrink-0 items-center justify-center rounded-xl">
+              <GitFork className="size-4" aria-hidden="true" />
+            </div>
+            <span className="text-muted-foreground font-mono text-[10px] tracking-[0.18em] uppercase">
+              JUFE · OPEN SOURCE
+            </span>
+          </div>
+          <span className="border-border text-muted-foreground rounded-full border px-2.5 py-1 font-mono text-[10px] tracking-[0.08em]">
+            欢迎共建
+          </span>
+        </div>
+        <CardTitle
+          id="open-source-project-notice-title"
+          className="font-display text-xl font-semibold tracking-[-0.03em] sm:text-2xl"
+        >
+          把江财同学的开源实践，汇在一起
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="border-border/70 grid gap-4 border-t px-5 py-4 sm:grid-cols-[minmax(0,1.45fr)_minmax(220px,1fr)] sm:px-6 sm:py-4">
+        <p className="text-muted-foreground max-w-2xl text-sm leading-6">
+          这里仅收录由本校同学创立或参与的开源项目。欢迎提交自己的项目，也欢迎推荐、补充其他同学参与的项目，让更多人看见并参与其中。
+        </p>
+        <div className="sm:border-border/70 grid gap-2 sm:border-l sm:pl-5">
+          <div>
+            <p className="text-muted-foreground font-mono text-[10px] tracking-[0.14em] uppercase">
+              收录范围
+            </p>
+            <p className="mt-1 text-sm font-medium">本校同学创立或参与</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground font-mono text-[10px] tracking-[0.14em] uppercase">
+              参与方式
+            </p>
+            <p className="mt-1 text-sm font-medium">提交、推荐、补充项目</p>
+          </div>
+          <OpenSourceProjectApplication className="w-full sm:w-auto" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function DirectoryNavigation({
   category,
   featured,
@@ -254,7 +311,7 @@ function DirectoryNavigation({
           分类目录
         </p>
         <div className="space-y-1">
-          {CATEGORY_VALUES.map((item) => {
+          {RESOURCE_DIRECTORY_CATEGORY_VALUES.map((item) => {
             const active = !featured && category === item;
             return (
               <button
@@ -274,7 +331,7 @@ function DirectoryNavigation({
                   {(stats.automatedCategories[item] ?? 0) > 0 ? (
                     <span
                       className={cn(
-                        "relative inline-flex h-5 shrink-0 self-center items-center gap-1.5 overflow-hidden rounded-full border px-2 text-[10px] font-semibold tracking-[0.02em] shadow-[inset_0_1px_0_rgb(255_255_255/0.35)] transition-colors",
+                        "relative inline-flex h-5 shrink-0 items-center gap-1.5 self-center overflow-hidden rounded-full border px-2 text-[10px] font-semibold tracking-[0.02em] shadow-[inset_0_1px_0_rgb(255_255_255/0.35)] transition-colors",
                         active
                           ? "border-background/20 bg-background/12 text-background"
                           : "border-emerald-500/20 bg-gradient-to-r from-emerald-500/14 via-teal-500/10 to-cyan-500/8 text-emerald-800 dark:border-emerald-400/20 dark:text-emerald-200",
@@ -452,12 +509,6 @@ export function ResourceBoard() {
     setDirectoryOpen(false);
   }
 
-  function clearFilters() {
-    const params = new URLSearchParams();
-    if (view !== "masonry") params.set("view", view);
-    navigateParams(params);
-  }
-
   const editResource = useCallback((item: ResourceDto) => {
     setEditing(item);
     setFormError("");
@@ -518,7 +569,6 @@ export function ResourceBoard() {
     }
   }
 
-  const hasActiveFilters = Boolean(q || category || featured || sort !== "newest");
   const directoryLabel = featured ? "精选资源" : category || "全部资源";
 
   return (
@@ -644,18 +694,6 @@ export function ResourceBoard() {
                     })}
                   </div>
 
-                  {hasActiveFilters ? (
-                    <Button
-                      type="button"
-                      onClick={clearFilters}
-                      variant="ghost"
-                      size="sm"
-                    >
-                      <X className="size-3.5" />
-                      清除筛选
-                    </Button>
-                  ) : null}
-
                   {authenticated ? (
                     <div className="border-border flex flex-wrap items-center gap-2 border-l pl-2">
                       <Button
@@ -676,6 +714,8 @@ export function ResourceBoard() {
               </div>
 
               <div className="min-[1024px]:pr-8">
+                {category === "开源项目" ? <OpenSourceProjectNotice /> : null}
+
                 {loading ? (
                   <div aria-live="polite" className="sr-only">
                     正在加载资源
@@ -708,18 +748,8 @@ export function ResourceBoard() {
                       没有结果
                     </p>
                     <p className="text-muted-foreground mt-2 text-sm">
-                      试试其他关键词，或清除筛选查看全部资源。
+                      试试其他关键词或其他分类。
                     </p>
-                    {hasActiveFilters ? (
-                      <Button
-                        type="button"
-                        onClick={clearFilters}
-                        size="lg"
-                        className="mt-6"
-                      >
-                        清除筛选
-                      </Button>
-                    ) : null}
                   </div>
                 ) : view === "feed" ? (
                   <div className="border-border bg-card my-5 overflow-hidden rounded-2xl border">

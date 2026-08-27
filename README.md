@@ -185,6 +185,10 @@ src/data/friends.ts
 
 友链页的“提交友链”会打开预填好的 GitHub Issue。`.github/workflows/friend-link-bot.yml` 会在新 Issue 下回复申请说明，并在每天北京时间 00:00 检查待处理申请：确认对方友链页存在江财OFFER的反向链接后，机器人会把站点写入 `src/data/friends.ts` 的 `personal` 分组、提交到 `main`，再触发现有 CI/CD 部署。客户端渲染、懒加载或临时访问保护导致无法判断时，Issue 会保持打开并在下一轮重试。
 
+## 提交开源项目
+
+资源页“开源项目”分类顶部的“提交自己的项目”会打开预填好的 GitHub Issue。它和友链申请共用 `.github/workflows/friend-link-bot.yml`：机器人每天北京时间 00:00 检查已等待至少 1 小时的申请，校验项目资料、公开地址和本校同学创立或参与的声明；通过后会生成一条带重复 URL 防护的 Prisma migration，提交到 `main`，再由现有 CI/CD 执行数据库迁移并部署到资源页。信息不完整或地址不可公开访问的 Issue 会自动说明原因并关闭。
+
 ## 替换 QQ 群号
 
 编辑：

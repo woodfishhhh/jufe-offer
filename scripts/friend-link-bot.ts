@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFile } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { isIP } from "node:net";
 import path from "node:path";
 import process from "node:process";
@@ -20,6 +20,15 @@ export interface FriendLinkIssueData {
   contact: string;
 }
 
+export interface OpenSourceProjectIssueData {
+  projectName: string;
+  projectUrl: string;
+  description: string;
+  relation: string;
+  tags: string[];
+  contact: string;
+}
+
 export interface OwnFriendLink {
   name: string;
   link: string;
@@ -34,6 +43,12 @@ export interface GitHubIssue {
   pull_request?: unknown;
   state?: string;
   title: string;
+}
+
+export interface OpenSourceProjectMigration {
+  directoryName: string;
+  relativePath: string;
+  content: string;
 }
 
 export interface ReciprocalLinkCheckResult {
@@ -51,13 +66,21 @@ export const JUFE_OFFER_FRIEND_LINK: OwnFriendLink = {
 };
 
 const FRIEND_LINK_TITLE_PREFIXES = ["[友链申请]", "[Friend Link]"] as const;
+const OPEN_SOURCE_PROJECT_TITLE_PREFIXES = [
+  "[开源项目提交]",
+  "[Open Source Project]",
+] as const;
 const INITIAL_COMMENT_MARKER = "<!-- jufe-offer-friend-bot:initial -->";
 const SUCCESS_COMMENT_MARKER = "<!-- jufe-offer-friend-bot:accepted -->";
 const REJECT_COMMENT_MARKER = "<!-- jufe-offer-friend-bot:rejected -->";
 const RETRY_COMMENT_MARKER = "<!-- jufe-offer-friend-bot:retry -->";
+const PROJECT_INITIAL_COMMENT_MARKER = "<!-- jufe-offer-open-source-bot:initial -->";
+const PROJECT_SUCCESS_COMMENT_MARKER = "<!-- jufe-offer-open-source-bot:accepted -->";
+const PROJECT_REJECT_COMMENT_MARKER = "<!-- jufe-offer-open-source-bot:rejected -->";
 const DEFAULT_WAIT_MS = 60 * 60 * 1000;
 const USER_AGENT = "JufeOfferFriendLinkBot/1.0";
 const FRIENDS_SOURCE_PATH = path.join("src", "data", "friends.ts");
+const RESOURCE_MIGRATIONS_PATH = path.join("prisma", "migrations");
 
 type FriendLinkSourceRecord = {
   name: string;
@@ -65,6 +88,7 @@ type FriendLinkSourceRecord = {
 };
 
 type IssueField = keyof FriendLinkIssueData;
+type ProjectIssueField = keyof OpenSourceProjectIssueData;
 
 const FIELD_LABELS: Record<IssueField, string[]> = {
   siteName: ["站点名称", "站点名", "site name", "name"],
@@ -81,6 +105,32 @@ const FIELD_LABELS: Record<IssueField, string[]> = {
   avatarUrl: ["头像或站点图标", "头像链接", "头像", "avatar url", "avatar", "site icon"],
   description: ["站点简介", "简介", "short description", "description", "descr"],
   contact: ["联系方式", "称呼或联系方式", "your name / contact", "contact"],
+};
+
+const PROJECT_FIELD_LABELS: Record<ProjectIssueField, string[]> = {
+  projectName: ["项目名称", "项目名", "project name", "name"],
+  projectUrl: [
+    "项目地址",
+    "项目链接",
+    "仓库地址",
+    "仓库链接",
+    "project url",
+    "project link",
+    "repository",
+    "repo",
+    "url",
+  ],
+  description: ["项目简介", "简介", "project description", "description", "descr"],
+  relation: [
+    "你与项目的关系",
+    "与项目的关系",
+    "项目关系",
+    "参与方式",
+    "project relation",
+    "relation",
+  ],
+  tags: ["项目标签", "标签", "project tags", "tags", "tag"],
+  contact: ["联系方式", "联系信息", "contact"],
 };
 
 function normalizeFieldLabel(value: string) {
@@ -105,6 +155,18 @@ function fieldForLabel(label: string): IssueField | null {
   return null;
 }
 
+function projectFieldForLabel(label: string): ProjectIssueField | null {
+  const normalized = normalizeFieldLabel(label);
+  for (const [field, labels] of Object.entries(PROJECT_FIELD_LABELS) as Array<
+    [ProjectIssueField, string[]]
+  >) {
+    if (labels.some((candidate) => normalizeFieldLabel(candidate) === normalized)) {
+      return field;
+    }
+  }
+  return null;
+}
+
 function cleanIssueValue(value: string) {
   const withoutComments = value.replace(/<!--[\s\S]*?-->/g, "").trim();
   if (!withoutComments || /^[-*]\s*\[[ xX]\]/.test(withoutComments)) {
@@ -113,8 +175,12 @@ function cleanIssueValue(value: string) {
   return withoutComments.replace(/^>\s?/, "").trim();
 }
 
-function readHeadingValues(lines: string[]) {
-  const fields = new Map<IssueField, string>();
+function readHeadingValues<T extends string>(
+  lines: string[],
+  resolveField: (label: string) => T | null,
+  isMultilineField: (field: T) => boolean,
+) {
+  const fields = new Map<T, string>();
 
   for (let index = 0; index < lines.length; index += 1) {
     const heading = lines[index]?.match(/^\s*#{2,6}\s+(.+?)\s*$/);
@@ -122,7 +188,7 @@ function readHeadingValues(lines: string[]) {
       continue;
     }
 
-    const field = fieldForLabel(heading[1] ?? "");
+    const field = resolveField(heading[1] ?? "");
     if (!field) {
       continue;
     }
@@ -139,15 +205,19 @@ function readHeadingValues(lines: string[]) {
     }
 
     if (values.length > 0 && !fields.has(field)) {
-      fields.set(field, field === "description" ? values.join(" ") : values[0]!);
+      fields.set(field, isMultilineField(field) ? values.join(" ") : values[0]!);
     }
   }
 
   return fields;
 }
 
-export function parseFriendLinkIssueBody(body: string): FriendLinkIssueData | null {
-  const fields = new Map<IssueField, string>();
+function readIssueFields<T extends string>(
+  body: string,
+  resolveField: (label: string) => T | null,
+  isMultilineField: (field: T) => boolean,
+) {
+  const fields = new Map<T, string>();
   const lines = body.split(/\r?\n/);
 
   for (const line of lines) {
@@ -157,18 +227,24 @@ export function parseFriendLinkIssueBody(body: string): FriendLinkIssueData | nu
     if (!match) {
       continue;
     }
-    const field = fieldForLabel(match[1] ?? "");
+    const field = resolveField(match[1] ?? "");
     const value = cleanIssueValue(match[2] ?? "");
     if (field && value && !fields.has(field)) {
       fields.set(field, value);
     }
   }
 
-  for (const [field, value] of readHeadingValues(lines)) {
+  for (const [field, value] of readHeadingValues(lines, resolveField, isMultilineField)) {
     if (!fields.has(field)) {
       fields.set(field, value);
     }
   }
+
+  return fields;
+}
+
+export function parseFriendLinkIssueBody(body: string): FriendLinkIssueData | null {
+  const fields = readIssueFields(body, fieldForLabel, (field) => field === "description");
 
   const parsed: FriendLinkIssueData = {
     siteName: normalizeSingleLine(fields.get("siteName") ?? ""),
@@ -191,6 +267,63 @@ export function parseFriendLinkIssueBody(body: string): FriendLinkIssueData | nu
   return parsed;
 }
 
+function normalizeProjectTags(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(/[,，、\s]+/)
+        .map((tag) => tag.replace(/^#/, "").trim())
+        .filter((tag) => Boolean(tag) && tag !== "未提供"),
+    ),
+  )
+    .filter((tag) => tag.length <= 20)
+    .slice(0, 8);
+}
+
+export function parseOpenSourceProjectIssueBody(
+  body: string,
+): OpenSourceProjectIssueData | null {
+  const fields = readIssueFields(
+    body,
+    projectFieldForLabel,
+    (field) => field === "description",
+  );
+  const parsed: OpenSourceProjectIssueData = {
+    projectName: normalizeSingleLine(fields.get("projectName") ?? ""),
+    projectUrl: normalizeSingleLine(fields.get("projectUrl") ?? ""),
+    description: normalizeSingleLine(fields.get("description") ?? ""),
+    relation: normalizeSingleLine(fields.get("relation") ?? ""),
+    tags: normalizeProjectTags(fields.get("tags") ?? ""),
+    contact: normalizeSingleLine(fields.get("contact") ?? "未提供") || "未提供",
+  };
+
+  if (
+    !parsed.projectName ||
+    !parsed.projectUrl ||
+    !parsed.description ||
+    !parsed.relation
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function hasOpenSourceProjectConfirmation(body: string) {
+  const checkedItems = body
+    .split(/\r?\n/)
+    .filter((line) => /^\s*[-*]\s*\[[xX]\]\s+/.test(line))
+    .map((line) => line.replace(/^\s*[-*]\s*\[[xX]\]\s+/, "").trim());
+
+  return (
+    checkedItems.some((item) => item.includes("本校同学") && item.includes("公开访问")) &&
+    checkedItems.some(
+      (item) =>
+        item.includes("同意") && item.includes("项目简介") && item.includes("标签"),
+    )
+  );
+}
+
 export function buildInitialFriendLinkComment(ownLink: OwnFriendLink) {
   return [
     INITIAL_COMMENT_MARKER,
@@ -207,6 +340,84 @@ export function buildInitialFriendLinkComment(ownLink: OwnFriendLink) {
     "",
     "如果检测到反链，我会自动把你的站点加入江财OFFER友链并关闭 Issue。",
   ].join("\n");
+}
+
+export function buildInitialOpenSourceProjectComment() {
+  return [
+    PROJECT_INITIAL_COMMENT_MARKER,
+    "收到开源项目提交啦！机器人每天北京时间 00:00 检查待处理申请；新申请至少等待 1 小时。",
+    "",
+    "本页面只收录由本校同学创立或参与的开源项目。请确保项目地址可以公开访问，并在 Issue 中说明你与项目的关系，保留并勾选提交确认。",
+    "",
+    "到检验时间后，如果信息完整且符合收录范围，我会自动把项目加入资源页并关闭 Issue。",
+  ].join("\n");
+}
+
+function sqlString(value: string) {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+function migrationTimestamp(date: Date) {
+  const parts = [
+    date.getUTCFullYear().toString().padStart(4, "0"),
+    (date.getUTCMonth() + 1).toString().padStart(2, "0"),
+    date.getUTCDate().toString().padStart(2, "0"),
+    date.getUTCHours().toString().padStart(2, "0"),
+    date.getUTCMinutes().toString().padStart(2, "0"),
+    date.getUTCSeconds().toString().padStart(2, "0"),
+  ];
+  return parts.join("");
+}
+
+export function buildOpenSourceProjectMigration(
+  project: OpenSourceProjectIssueData,
+  issueNumber: number,
+  createdAt = new Date(),
+): OpenSourceProjectMigration {
+  if (!Number.isSafeInteger(issueNumber) || issueNumber < 1) {
+    throw new Error("A positive GitHub issue number is required.");
+  }
+
+  const projectUrl = normalizePublicHttpUrl(project.projectUrl);
+  if (!projectUrl) {
+    throw new Error("A safe public project URL is required.");
+  }
+
+  const directoryName = `${migrationTimestamp(createdAt)}_add_open_source_project_${issueNumber}`;
+  const relativePath = path.join(
+    RESOURCE_MIGRATIONS_PATH,
+    directoryName,
+    "migration.sql",
+  );
+  const resourceId = `open_source_issue_${issueNumber}`;
+  const tags = JSON.stringify(project.tags);
+  const content = [
+    `-- Added from GitHub issue #${issueNumber} by jufe-offer-open-source-bot.`,
+    'INSERT INTO "Resource" (',
+    '  "id", "title", "description", "url", "category", "tags",',
+    '  "isFeatured", "origin", "startsAt", "deadlineAt", "createdAt", "updatedAt"',
+    ")",
+    "SELECT",
+    `  ${sqlString(resourceId)},`,
+    `  ${sqlString(normalizeSingleLine(project.projectName))},`,
+    `  ${sqlString(normalizeSingleLine(project.description))},`,
+    `  ${sqlString(projectUrl)},`,
+    `  ${sqlString("开源项目")},`,
+    `  ${sqlString(tags)},`,
+    "  0,",
+    "  'MANUAL',",
+    "  NULL,",
+    "  NULL,",
+    "  CURRENT_TIMESTAMP,",
+    "  CURRENT_TIMESTAMP",
+    "WHERE NOT EXISTS (",
+    '  SELECT 1 FROM "Resource"',
+    `  WHERE lower(rtrim("url", '/')) = lower(rtrim(${sqlString(projectUrl)}, '/'))`,
+    ");",
+    "",
+  ].join("\n");
+
+  return { directoryName, relativePath, content };
 }
 
 export function shouldReviewIssue(
@@ -573,7 +784,7 @@ class GitHubClient {
     private readonly repo: string,
   ) {}
 
-  async listOpenFriendIssues() {
+  async listOpenSubmissionIssues() {
     const issues: GitHubIssue[] = [];
     for (let page = 1; ; page += 1) {
       const batch = await this.request<GitHubIssue[]>(
@@ -586,8 +797,13 @@ class GitHubClient {
     }
 
     return issues.filter(
-      (issue) => !issue.pull_request && isFriendLinkIssueTitle(issue.title),
+      (issue) => !issue.pull_request && isSupportedSubmissionIssueTitle(issue.title),
     );
+  }
+
+  async listOpenFriendIssues() {
+    const issues = await this.listOpenSubmissionIssues();
+    return issues.filter((issue) => isFriendLinkIssueTitle(issue.title));
   }
 
   async listComments(issueNumber: number) {
@@ -651,15 +867,38 @@ function isFriendLinkIssueTitle(title: string) {
   return FRIEND_LINK_TITLE_PREFIXES.some((prefix) => title.startsWith(prefix));
 }
 
+export function isOpenSourceProjectIssueTitle(title: string) {
+  return OPEN_SOURCE_PROJECT_TITLE_PREFIXES.some((prefix) => title.startsWith(prefix));
+}
+
+function isSupportedSubmissionIssueTitle(title: string) {
+  return isFriendLinkIssueTitle(title) || isOpenSourceProjectIssueTitle(title);
+}
+
 async function runOpenedMode() {
   const issue = await readEventIssue();
-  if (!issue || !isFriendLinkIssueTitle(issue.title)) {
-    console.log("No friend-link issue in event; skipping.");
+  if (!issue || !isSupportedSubmissionIssueTitle(issue.title)) {
+    console.log("No supported submission issue in event; skipping.");
     return;
   }
 
   const github = createGitHubClient();
   const comments = await github.listComments(issue.number);
+  if (isOpenSourceProjectIssueTitle(issue.title)) {
+    if (
+      comments.some((comment) => comment.body?.includes(PROJECT_INITIAL_COMMENT_MARKER))
+    ) {
+      console.log(
+        `Initial open-source project comment already exists for #${issue.number}.`,
+      );
+      return;
+    }
+
+    await github.addComment(issue.number, buildInitialOpenSourceProjectComment());
+    console.log(`Posted initial open-source project comment to #${issue.number}.`);
+    return;
+  }
+
   if (comments.some((comment) => comment.body?.includes(INITIAL_COMMENT_MARKER))) {
     console.log(`Initial friend-link comment already exists for #${issue.number}.`);
     return;
@@ -674,7 +913,7 @@ async function runOpenedMode() {
 
 async function runReviewMode() {
   const github = createGitHubClient();
-  const issues = await github.listOpenFriendIssues();
+  const issues = await github.listOpenSubmissionIssues();
   const now = new Date();
 
   for (const issue of issues) {
@@ -682,11 +921,15 @@ async function runReviewMode() {
       console.log(`Skipping #${issue.number}: still waiting for one-hour window.`);
       continue;
     }
-    await reviewIssue(issue, github);
+    if (isOpenSourceProjectIssueTitle(issue.title)) {
+      await reviewOpenSourceProjectIssue(issue, github);
+    } else {
+      await reviewFriendLinkIssue(issue, github);
+    }
   }
 }
 
-async function reviewIssue(issue: GitHubIssue, github: GitHubClient) {
+async function reviewFriendLinkIssue(issue: GitHubIssue, github: GitHubClient) {
   const comments = await github.listComments(issue.number);
   if (comments.some((comment) => comment.body?.includes(SUCCESS_COMMENT_MARKER))) {
     await github.closeIssue(issue.number, "completed");
@@ -777,10 +1020,101 @@ async function reviewIssue(issue: GitHubIssue, github: GitHubClient) {
   console.log(`Accepted friend link issue #${issue.number}.`);
 }
 
+async function reviewOpenSourceProjectIssue(issue: GitHubIssue, github: GitHubClient) {
+  const comments = await github.listComments(issue.number);
+  if (
+    comments.some((comment) => comment.body?.includes(PROJECT_SUCCESS_COMMENT_MARKER))
+  ) {
+    await github.closeIssue(issue.number, "completed");
+    console.log(`Closed already-accepted open-source project issue #${issue.number}.`);
+    return;
+  }
+  if (comments.some((comment) => comment.body?.includes(PROJECT_REJECT_COMMENT_MARKER))) {
+    await github.closeIssue(issue.number, "not_planned");
+    console.log(`Closed already-rejected open-source project issue #${issue.number}.`);
+    return;
+  }
+
+  const parsed = parseOpenSourceProjectIssueBody(issue.body ?? "");
+  if (!parsed) {
+    await rejectOpenSourceProjectIssue(
+      github,
+      issue.number,
+      "到检验时间啦，但这个 Issue 里的项目信息不完整，暂时无法自动处理。本 Issue 先关闭，可以补齐信息后重新提交。",
+    );
+    return;
+  }
+
+  if (!hasOpenSourceProjectConfirmation(issue.body ?? "")) {
+    await rejectOpenSourceProjectIssue(
+      github,
+      issue.number,
+      "请保留并勾选 Issue 底部的两项提交确认，确认项目与本校同学有关且地址可以公开访问。本 Issue 先关闭，确认后欢迎重新提交。",
+    );
+    return;
+  }
+
+  const projectUrl = normalizePublicHttpUrl(parsed.projectUrl);
+  if (!projectUrl) {
+    await rejectOpenSourceProjectIssue(
+      github,
+      issue.number,
+      "项目地址必须是可公开访问的 HTTP(S) 地址，且不能使用本地或内网地址。本 Issue 先关闭，修正后欢迎重新提交。",
+    );
+    return;
+  }
+
+  const project = { ...parsed, projectUrl };
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const existingRelativePath = await findExistingOpenSourceProjectMigration(
+    repoRoot,
+    issue.number,
+  );
+  const migration = existingRelativePath
+    ? null
+    : buildOpenSourceProjectMigration(project, issue.number);
+  const relativePath = existingRelativePath ?? migration!.relativePath;
+
+  if (migration) {
+    const migrationPath = path.join(repoRoot, relativePath);
+    await mkdir(path.dirname(migrationPath), { recursive: true });
+    await writeFile(migrationPath, migration.content, "utf8");
+  }
+
+  const commitSha = await commitAndPushOpenSourceProject(
+    repoRoot,
+    project,
+    issue.number,
+    relativePath,
+  );
+  await github.addComment(
+    issue.number,
+    [
+      PROJECT_SUCCESS_COMMENT_MARKER,
+      "项目提交已通过自动校验，已加入开源项目资源页。",
+      commitSha
+        ? `已提交到 main：${commitSha}，GitHub Actions 会继续构建、执行数据库迁移并部署。`
+        : "该 Issue 对应的项目提交已经存在，这次没有产生新的提交。",
+    ].join("\n\n"),
+  );
+  await github.closeIssue(issue.number, "completed");
+  console.log(`Accepted open-source project issue #${issue.number}.`);
+}
+
 async function rejectIssue(github: GitHubClient, issueNumber: number, message: string) {
   await github.addComment(issueNumber, `${REJECT_COMMENT_MARKER}\n${message}`);
   await github.closeIssue(issueNumber, "not_planned");
   console.log(`Rejected friend link issue #${issueNumber}.`);
+}
+
+async function rejectOpenSourceProjectIssue(
+  github: GitHubClient,
+  issueNumber: number,
+  message: string,
+) {
+  await github.addComment(issueNumber, `${PROJECT_REJECT_COMMENT_MARKER}\n${message}`);
+  await github.closeIssue(issueNumber, "not_planned");
+  console.log(`Rejected open-source project issue #${issueNumber}.`);
 }
 
 async function deferIssue(
@@ -827,6 +1161,59 @@ async function commitAndPushFriendLink(
     "commit",
     "-m",
     `feat(friends): add ${friend.siteName} (#${issueNumber})`,
+  ]);
+  const sha = (await git(repoRoot, ["rev-parse", "--short", "HEAD"])).trim();
+  await git(repoRoot, ["push", "origin", "HEAD:main"]);
+  return sha;
+}
+
+async function findExistingOpenSourceProjectMigration(
+  repoRoot: string,
+  issueNumber: number,
+) {
+  const migrationsRoot = path.join(repoRoot, RESOURCE_MIGRATIONS_PATH);
+  let entries;
+  try {
+    entries = await readdir(migrationsRoot, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+
+  const suffix = `_add_open_source_project_${issueNumber}`;
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !entry.name.endsWith(suffix)) {
+      continue;
+    }
+
+    const relativePath = path.join(RESOURCE_MIGRATIONS_PATH, entry.name, "migration.sql");
+    try {
+      await readFile(path.join(repoRoot, relativePath), "utf8");
+      return relativePath;
+    } catch {
+      // Ignore incomplete directories and create a fresh migration below.
+    }
+  }
+
+  return null;
+}
+
+async function commitAndPushOpenSourceProject(
+  repoRoot: string,
+  project: OpenSourceProjectIssueData,
+  issueNumber: number,
+  relativePath: string,
+) {
+  const gitPath = relativePath.split(path.sep).join("/");
+  await git(repoRoot, ["add", "--", gitPath]);
+  const staged = await git(repoRoot, ["diff", "--cached", "--name-only"]);
+  if (!staged.trim()) {
+    return "";
+  }
+
+  await git(repoRoot, [
+    "commit",
+    "-m",
+    `feat(resources): add ${project.projectName} (#${issueNumber})`,
   ]);
   const sha = (await git(repoRoot, ["rev-parse", "--short", "HEAD"])).trim();
   await git(repoRoot, ["push", "origin", "HEAD:main"]);

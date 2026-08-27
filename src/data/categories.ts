@@ -14,6 +14,20 @@ export const CATEGORY_VALUES = [
 
 export type Category = (typeof CATEGORY_VALUES)[number];
 
+export const RESOURCE_DIRECTORY_CATEGORY_VALUES = [
+  "开源项目",
+  "实习与校招",
+  "学习路线",
+  "编程学习",
+  "竞赛",
+  "Hackathon",
+  "训练营",
+  "编程工具",
+  "简历与面试",
+  "江财校内资源",
+  "其他资源",
+] as const satisfies readonly Category[];
+
 export const HOME_CATEGORY_PREVIEWS: {
   category: Category;
   summary: string;

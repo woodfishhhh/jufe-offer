@@ -1,4 +1,4 @@
-name: Friend Link Bot
+name: Community Submission Bot
 
 on:
   issues:
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: jufe-offer-friend-link-bot
+  group: jufe-offer-community-submission-bot
   cancel-in-progress: false
 
 permissions:
@@ -23,7 +23,9 @@ jobs:
     if: >-
       github.event_name != 'issues' ||
       startsWith(github.event.issue.title, '[友链申请]') ||
-      startsWith(github.event.issue.title, '[Friend Link]')
+      startsWith(github.event.issue.title, '[Friend Link]') ||
+      startsWith(github.event.issue.title, '[开源项目提交]') ||
+      startsWith(github.event.issue.title, '[Open Source Project]')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -54,18 +56,18 @@ jobs:
 
       - name: Configure git
         run: |
-          git config user.name "jufe-offer-friend-bot"
+          git config user.name "jufe-offer-community-bot"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Reply to new friend-link issue
+      - name: Reply to new community submission issue
         if: github.event_name == 'issues'
         run: pnpm friend-link-bot opened
 
-      - name: Review pending friend-link issues
+      - name: Review pending community submission issues
         if: github.event_name != 'issues'
         run: pnpm friend-link-bot review
 
-      - name: Trigger CI for accepted friend links
+      - name: Trigger CI for accepted submissions
         if: always() && github.event_name != 'issues'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -75,9 +77,9 @@ jobs:
           git fetch --quiet origin main
           remote_sha="$(git rev-parse origin/main)"
           if [ "$current_sha" = "$INITIAL_SHA" ] || [ "$current_sha" != "$remote_sha" ]; then
-            echo "No new friend-link commit is present on origin/main; CI is not needed."
+            echo "No new submission commit is present on origin/main; CI is not needed."
             exit 0
           fi
 
-          echo "Friend-link bot created $current_sha; triggering CI for main."
+          echo "Community submission bot created $current_sha; triggering CI for main."
           gh workflow run ci-deploy.yml --ref main
