@@ -58,29 +58,22 @@ type DirectoryStats = {
   total: number;
   featured: number;
   categories: Record<string, number>;
-  automatedCategories: Record<string, number>;
 };
 
 const EMPTY_DIRECTORY_STATS: DirectoryStats = {
   total: 0,
   featured: 0,
   categories: {},
-  automatedCategories: {},
 };
 
 function directoryStatsFrom(resources: ResourceDto[]): DirectoryStats {
   const categories: Record<string, number> = {};
-  const automatedCategories: Record<string, number> = {};
   let featured = 0;
   for (const resource of resources) {
     categories[resource.category] = (categories[resource.category] ?? 0) + 1;
-    if (resource.origin === "OPENCLAW") {
-      automatedCategories[resource.category] =
-        (automatedCategories[resource.category] ?? 0) + 1;
-    }
     if (resource.isFeatured) featured += 1;
   }
-  return { total: resources.length, featured, categories, automatedCategories };
+  return { total: resources.length, featured, categories };
 }
 
 const VIEW_OPTIONS: {
@@ -327,41 +320,15 @@ function DirectoryNavigation({
                 )}
               >
                 <span>{item}</span>
-                <span className="flex items-center gap-1.5">
-                  {(stats.automatedCategories[item] ?? 0) > 0 ? (
-                    <span
-                      className={cn(
-                        "relative inline-flex h-5 shrink-0 items-center gap-1.5 self-center overflow-hidden rounded-full border px-2 text-[10px] font-semibold tracking-[0.02em] shadow-[inset_0_1px_0_rgb(255_255_255/0.35)] transition-colors",
-                        active
-                          ? "border-background/20 bg-background/12 text-background"
-                          : "border-emerald-500/20 bg-gradient-to-r from-emerald-500/14 via-teal-500/10 to-cyan-500/8 text-emerald-800 dark:border-emerald-400/20 dark:text-emerald-200",
-                      )}
-                      title="由 OpenClaw 自动采集并直接发布"
-                      aria-label={`自动采集并发布 ${stats.automatedCategories[item]} 条`}
-                    >
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          "size-1.5 rounded-full shadow-[0_0_0_3px_rgb(16_185_129/0.12)]",
-                          active ? "bg-background" : "bg-emerald-500 dark:bg-emerald-300",
-                        )}
-                      />
-                      <span>自动</span>
-                      <span className="font-mono tabular-nums opacity-75">
-                        {stats.automatedCategories[item]}
-                      </span>
-                    </span>
-                  ) : null}
-                  <span
-                    className={cn(
-                      "min-w-7 rounded-full px-2 py-0.5 text-center font-mono text-xs font-bold tabular-nums",
-                      active
-                        ? "bg-background/15 text-background"
-                        : "bg-muted text-foreground/75",
-                    )}
-                  >
-                    {stats.categories[item] ?? 0}
-                  </span>
+                <span
+                  className={cn(
+                    "min-w-7 rounded-full px-2 py-0.5 text-center font-mono text-xs font-bold tabular-nums",
+                    active
+                      ? "bg-background/15 text-background"
+                      : "bg-muted text-foreground/75",
+                  )}
+                >
+                  {stats.categories[item] ?? 0}
                 </span>
               </button>
             );

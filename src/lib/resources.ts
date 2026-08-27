@@ -1,12 +1,6 @@
 import type { Resource, ResourceOrigin } from "@prisma/client";
 import { parseTags } from "@/lib/tags";
 
-export const RESOURCE_ORIGIN_LABELS: Record<ResourceOrigin, string> = {
-  SEED: "初始整理",
-  MANUAL: "人工整理",
-  OPENCLAW: "自动采集",
-};
-
 export type ResourceDto = {
   id: string;
   title: string;

@@ -15,7 +15,6 @@ import {
 import {
   formatResourceDateTime,
   isPastDeadline,
-  RESOURCE_ORIGIN_LABELS,
   type ResourceDto,
 } from "@/lib/resources";
 import { cn } from "@/lib/utils";
@@ -87,7 +86,6 @@ function ResourceBadges({ resource }: { resource: ResourceDto }) {
         </Badge>
       ) : null}
       <Badge variant="outline">{resource.category}</Badge>
-      <Badge variant="secondary">{RESOURCE_ORIGIN_LABELS[resource.origin]}</Badge>
     </div>
   );
 }
@@ -173,7 +171,6 @@ function FeedCard(props: ResourceCardProps) {
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{resource.category}</Badge>
           {resource.isFeatured ? <Badge>精选</Badge> : null}
-          <Badge variant="secondary">{RESOURCE_ORIGIN_LABELS[resource.origin]}</Badge>
           <ResourceTimeMeta resource={resource} compact />
         </div>
         <h2 className="font-display mt-2 text-lg font-semibold tracking-[-0.025em] sm:text-xl">

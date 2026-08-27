@@ -8,7 +8,7 @@ import { HOME_CATEGORY_PREVIEWS } from "@/data/categories";
 import { scheduleIdle } from "@/lib/client-performance";
 import { requestResourceList } from "@/lib/client-resources";
 
-type CategoryCount = { total: number; automated: number };
+type CategoryCount = { total: number };
 
 let cachedCounts: Map<string, CategoryCount> | null = null;
 let countsRequest: Promise<Map<string, CategoryCount>> | null = null;
@@ -18,10 +18,9 @@ async function requestCounts() {
     .then((resources) => {
       const counts = new Map<string, CategoryCount>();
       for (const resource of resources) {
-        const current = counts.get(resource.category) ?? { total: 0, automated: 0 };
+        const current = counts.get(resource.category) ?? { total: 0 };
         counts.set(resource.category, {
           total: current.total + 1,
-          automated: current.automated + (resource.origin === "OPENCLAW" ? 1 : 0),
         });
       }
       cachedCounts = counts;
@@ -72,9 +71,7 @@ export function HomeCategoryGrid() {
               <ArrowUpRight className="text-muted-foreground group-hover:text-foreground size-4 transition-transform duration-150 ease-[var(--ease-out)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </span>
             <span className="text-muted-foreground mt-3 block text-xs sm:mt-5">
-              {counts
-                ? `${counts.get(item.category)?.total ?? 0} 个资源 · 自动 ${counts.get(item.category)?.automated ?? 0}`
-                : "资源统计中"}
+              {counts ? `${counts.get(item.category)?.total ?? 0} 个资源` : "资源统计中"}
             </span>
           </Card>
         </Link>
