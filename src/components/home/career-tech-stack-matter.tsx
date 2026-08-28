@@ -2,9 +2,14 @@
 "use client";
 
 import Matter from "matter-js";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { getTechnologyIcon, TECHNOLOGY_ICON_FALLBACK } from "@/data/technology-icons";
+import {
+  getTechnologyIcon,
+  getTechnologyIconSpriteStyle,
+  TECHNOLOGY_ICON_FALLBACK,
+  TECHNOLOGY_ICON_SPRITE_SRC,
+} from "@/data/technology-icons";
 
 type CareerTechStackMatterProps = {
   technologies: readonly string[];
@@ -29,7 +34,18 @@ const STEP_MS = 1000 / 60;
 
 export function CareerTechStackMatter({ technologies }: CareerTechStackMatterProps) {
   const fieldRef = useRef<HTMLDivElement>(null);
+  const [spriteFailed, setSpriteFailed] = useState(false);
   const technologyKey = technologies.join("|");
+
+  useEffect(() => {
+    const sprite = new Image();
+    sprite.onerror = () => setSpriteFailed(true);
+    sprite.src = TECHNOLOGY_ICON_SPRITE_SRC;
+
+    return () => {
+      sprite.onerror = null;
+    };
+  }, []);
 
   useEffect(() => {
     const field = fieldRef.current;
@@ -286,29 +302,41 @@ export function CareerTechStackMatter({ technologies }: CareerTechStackMatterPro
       <div className="career-matter-field__watermark" aria-hidden="true">
         <span>TECH STACK</span>
       </div>
-      {technologies.map((technology) => (
-        <button
-          key={technology}
-          type="button"
-          className="career-matter-capsule"
-          data-career-capsule
-          aria-label={`${technology}，可拖动`}
-        >
-          <img
-            className="career-matter-capsule__icon"
-            src={getTechnologyIcon(technology)}
-            alt=""
-            draggable="false"
-            aria-hidden="true"
-            onError={(event) => {
-              if (event.currentTarget.src !== TECHNOLOGY_ICON_FALLBACK) {
-                event.currentTarget.src = TECHNOLOGY_ICON_FALLBACK;
-              }
-            }}
-          />
-          <span>{technology}</span>
-        </button>
-      ))}
+      {technologies.map((technology) => {
+        const spriteStyle = getTechnologyIconSpriteStyle(technology);
+
+        return (
+          <button
+            key={technology}
+            type="button"
+            className="career-matter-capsule"
+            data-career-capsule
+            aria-label={`${technology}，可拖动`}
+          >
+            {spriteStyle && !spriteFailed ? (
+              <span
+                className="career-matter-capsule__icon"
+                style={spriteStyle}
+                aria-hidden="true"
+              />
+            ) : (
+              <img
+                className="career-matter-capsule__icon"
+                src={getTechnologyIcon(technology)}
+                alt=""
+                draggable="false"
+                aria-hidden="true"
+                onError={(event) => {
+                  if (event.currentTarget.src !== TECHNOLOGY_ICON_FALLBACK) {
+                    event.currentTarget.src = TECHNOLOGY_ICON_FALLBACK;
+                  }
+                }}
+              />
+            )}
+            <span>{technology}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

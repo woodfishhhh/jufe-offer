@@ -9,6 +9,8 @@ import { promisify } from "node:util";
 
 import { chromium } from "playwright";
 
+import { syncCampusProjectSubmission } from "./campus-project-avatars";
+
 const execFileAsync = promisify(execFile);
 
 export interface FriendLinkIssueData {
@@ -1081,17 +1083,28 @@ async function reviewOpenSourceProjectIssue(issue: GitHubIssue, github: GitHubCl
     await writeFile(migrationPath, migration.content, "utf8");
   }
 
+  const campusProjectSync = await syncCampusProjectSubmission(repoRoot, project);
+  if (!campusProjectSync) {
+    console.log(
+      `Project #${issue.number} is not hosted on GitHub; skipping avatar and home-wall sync.`,
+    );
+  }
+
   const commitSha = await commitAndPushOpenSourceProject(
     repoRoot,
     project,
     issue.number,
     relativePath,
+    campusProjectSync?.relativePaths ?? [],
   );
   await github.addComment(
     issue.number,
     [
       PROJECT_SUCCESS_COMMENT_MARKER,
       "项目提交已通过自动校验，已加入校内开源项目资源页。",
+      campusProjectSync
+        ? "GitHub 头像已压缩为站内 WebP，并同步到首页项目墙。"
+        : "该项目不是 GitHub 仓库，因此未同步 GitHub 头像和首页项目墙。",
       commitSha
         ? `已提交到 main：${commitSha}，GitHub Actions 会继续构建、执行数据库迁移并部署。`
         : "该 Issue 对应的项目提交已经存在，这次没有产生新的提交。",
@@ -1202,10 +1215,19 @@ async function commitAndPushOpenSourceProject(
   project: OpenSourceProjectIssueData,
   issueNumber: number,
   relativePath: string,
+  companionPaths: string[] = [],
 ) {
-  const gitPath = relativePath.split(path.sep).join("/");
-  await git(repoRoot, ["add", "--", gitPath]);
-  const staged = await git(repoRoot, ["diff", "--cached", "--name-only"]);
+  const gitPaths = [relativePath, ...companionPaths].map((filePath) =>
+    filePath.split(path.sep).join("/"),
+  );
+  await git(repoRoot, ["add", "--", ...gitPaths]);
+  const staged = await git(repoRoot, [
+    "diff",
+    "--cached",
+    "--name-only",
+    "--",
+    ...gitPaths,
+  ]);
   if (!staged.trim()) {
     return "";
   }

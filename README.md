@@ -187,7 +187,9 @@ src/data/friends.ts
 
 ## 提交校内开源项目
 
-资源页“校内开源项目”分类顶部的“提交自己的项目”会打开预填好的 GitHub Issue。它和友链申请共用 `.github/workflows/friend-link-bot.yml`：机器人每天北京时间 00:00 检查已等待至少 1 小时的申请，校验项目资料、公开地址和本校同学创立或参与的声明；通过后会生成一条带重复 URL 防护的 Prisma migration，提交到 `main`，再由现有 CI/CD 执行数据库迁移并部署到资源页。信息不完整或地址不可公开访问的 Issue 会自动说明原因并关闭。
+资源页“校内开源项目”分类顶部的“提交自己的项目”会打开预填好的 GitHub Issue。它和友链申请共用 `.github/workflows/friend-link-bot.yml`：机器人每天北京时间 00:00 检查已等待至少 1 小时的申请，校验项目资料、公开地址和本校同学创立或参与的声明；通过后会生成一条带重复 URL 防护的 Prisma migration。GitHub 仓库还会自动抓取项目 owner 的头像，压缩为 320×320 WebP 保存到 `public/campus-project-avatars/`，并把项目同步到首页项目墙。随后机器人提交到 `main`，再由现有 CI/CD 执行数据库迁移并部署。信息不完整或地址不可公开访问的 Issue 会自动说明原因并关闭。
+
+需要手动刷新全部项目头像时，运行 `pnpm sync:campus-project-avatars`；也可以在命令后附一个或多个 GitHub 仓库地址，只压缩对应 owner 的头像。
 
 ## 替换 QQ 群号
 

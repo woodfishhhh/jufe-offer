@@ -1232,7 +1232,20 @@ const HOSTED_TECH_LOGOS: Record<string, string> = {
 export const TECHNOLOGY_ICON_FALLBACK =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111111' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m8 8-4 4 4 4M16 8l4 4-4 4M14 4l-4 16'/%3E%3C/svg%3E";
 
-export function getTechnologyIcon(technology: string) {
+export const TECHNOLOGY_ICON_SPRITE_SRC = "/technology-icons/sprite.avif";
+export const TECHNOLOGY_ICON_SPRITE_COLUMNS = 20;
+
+const TECHNOLOGY_ICON_SPRITE_SOURCES = [
+  ...new Set(Object.values(HOSTED_TECH_LOGOS)),
+].sort();
+const TECHNOLOGY_ICON_SPRITE_ROWS = Math.ceil(
+  TECHNOLOGY_ICON_SPRITE_SOURCES.length / TECHNOLOGY_ICON_SPRITE_COLUMNS,
+);
+const TECHNOLOGY_ICON_SPRITE_INDEX = new Map(
+  TECHNOLOGY_ICON_SPRITE_SOURCES.map((source, index) => [source, index]),
+);
+
+function resolveTechnologyIcon(technology: string) {
   const canonicalTechnology = TECHNOLOGY_ICON_ALIASES[technology] ?? technology;
   const blogLogo = BLOG_TECH_LOGOS[canonicalTechnology];
   const iconId = ICONIFY_TECH_LOGOS[canonicalTechnology];
@@ -1240,5 +1253,42 @@ export function getTechnologyIcon(technology: string) {
     blogLogo ??
     (iconId ? `https://api.iconify.design/${iconId}.svg` : TECHNOLOGY_ICON_FALLBACK);
 
-  return HOSTED_TECH_LOGOS[sourceLogo] ?? sourceLogo;
+  return {
+    sourceLogo,
+    hostedLogo: HOSTED_TECH_LOGOS[sourceLogo],
+  };
+}
+
+export function getTechnologyIcon(technology: string) {
+  const { sourceLogo, hostedLogo } = resolveTechnologyIcon(technology);
+
+  if (!hostedLogo) return sourceLogo;
+
+  const filename = hostedLogo.slice(hostedLogo.lastIndexOf("/") + 1);
+  return filename ? `/technology-icons/${filename}` : sourceLogo;
+}
+
+export function getTechnologyIconSpriteStyle(technology: string) {
+  const { hostedLogo } = resolveTechnologyIcon(technology);
+  const index = hostedLogo ? TECHNOLOGY_ICON_SPRITE_INDEX.get(hostedLogo) : undefined;
+
+  if (index === undefined) return null;
+
+  const column = index % TECHNOLOGY_ICON_SPRITE_COLUMNS;
+  const row = Math.floor(index / TECHNOLOGY_ICON_SPRITE_COLUMNS);
+  const x = (column / (TECHNOLOGY_ICON_SPRITE_COLUMNS - 1)) * 100;
+  const y =
+    TECHNOLOGY_ICON_SPRITE_ROWS === 1
+      ? 0
+      : (row / (TECHNOLOGY_ICON_SPRITE_ROWS - 1)) * 100;
+
+  return {
+    backgroundImage: `url("${TECHNOLOGY_ICON_SPRITE_SRC}")`,
+    backgroundPosition: `${x}% ${y}%`,
+    backgroundSize: `${TECHNOLOGY_ICON_SPRITE_COLUMNS * 100}% ${TECHNOLOGY_ICON_SPRITE_ROWS * 100}%`,
+  };
+}
+
+export function getTechnologyIconSpriteSources() {
+  return TECHNOLOGY_ICON_SPRITE_SOURCES;
 }

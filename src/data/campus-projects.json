@@ -1,0 +1,32 @@
+[
+  {
+    "title": "江财OFFER",
+    "subtitle": "校内资源导航",
+    "href": "https://github.com/woodfishhhh/jufe-offer",
+    "image": "/campus-project-avatars/woodfishhhh.webp"
+  },
+  {
+    "title": "Typability",
+    "subtitle": "Markdown 编辑器",
+    "href": "https://github.com/SimonShiki/Typability",
+    "image": "/campus-project-avatars/simonshiki.webp"
+  },
+  {
+    "title": "AutoEmailSender",
+    "subtitle": "AI 邮件助手",
+    "href": "https://github.com/JunieXD/AutoEmailSender",
+    "image": "/campus-project-avatars/juniexd.webp"
+  },
+  {
+    "title": "Woodfish Theme",
+    "subtitle": "VS Code 主题",
+    "href": "https://github.com/woodfishhhh/Woodfish-Theme",
+    "image": "/campus-project-avatars/woodfishhhh.webp"
+  },
+  {
+    "title": "XCPC Tracker",
+    "subtitle": "竞赛训练追踪",
+    "href": "https://github.com/mohaoz/xcpc-tracker",
+    "image": "/campus-project-avatars/mohaoz.webp"
+  }
+]
