@@ -517,12 +517,13 @@ export function ResourceBoard() {
   const loadNextBatch = useCallback(() => {
     setPagination((current) => {
       const currentCount = current.key === paginationKey ? current.count : PAGE_SIZE;
+      if (currentCount !== visibleCount) return current;
       return {
         key: paginationKey,
         count: Math.min(currentCount + PAGE_SIZE, resources.length),
       };
     });
-  }, [paginationKey, resources.length]);
+  }, [paginationKey, resources.length, visibleCount]);
 
   useEffect(() => {
     const target = lazyLoadRef.current;
@@ -564,7 +565,20 @@ export function ResourceBoard() {
               </div>
             </aside>
 
-            <main className="min-w-0 min-[1024px]:h-full min-[1024px]:overflow-y-auto">
+            <main
+              className="min-w-0 min-[1024px]:h-full min-[1024px]:overflow-y-auto"
+              onScroll={(event) => {
+                const { clientHeight, scrollHeight, scrollTop } = event.currentTarget;
+                if (
+                  hasMore &&
+                  !loading &&
+                  !loadError &&
+                  scrollHeight - scrollTop - clientHeight <= 160
+                ) {
+                  loadNextBatch();
+                }
+              }}
+            >
               <div
                 data-testid="resource-toolbar"
                 className="resource-toolbar border-border -mx-5 border-b px-5 pt-[calc(var(--nav-float-inset)+var(--nav-island-height)+0.35rem)] pb-4 min-[1024px]:mx-0 min-[1024px]:pr-8 min-[1024px]:pl-0 sm:-mx-8 sm:px-8"
