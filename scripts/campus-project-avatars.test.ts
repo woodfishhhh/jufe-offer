@@ -8,7 +8,7 @@ import sharp from "sharp";
 
 import {
   compressCampusProjectAvatar,
-  mergeCampusProjectRecord,
+  fetchGitHubRepositoryMetadata,
   parseGitHubRepositoryUrl,
   syncGitHubAvatar,
 } from "./campus-project-avatars";
@@ -85,29 +85,33 @@ test("downloads an allowed GitHub avatar once and writes an idempotent local fil
   }
 });
 
-test("upserts a submitted project without creating duplicate repositories", () => {
-  const first = mergeCampusProjectRecord(
-    [],
-    {
-      projectName: "江财校园助手",
-      projectUrl: "https://github.com/example/jufe-helper",
-      tags: ["校园", "工具", "小程序"],
-    },
-    "/campus-project-avatars/example.webp",
-  );
-  const second = mergeCampusProjectRecord(
-    first.records,
-    {
-      projectName: "江财校园助手",
-      projectUrl: "https://github.com/EXAMPLE/jufe-helper/",
-      tags: ["校园", "工具", "小程序"],
-    },
-    "/campus-project-avatars/example.webp",
-  );
+test("reads the repository description, stars and language from GitHub metadata", async () => {
+  const fetchImpl: typeof fetch = async () => {
+    const response = Response.json({
+      html_url: "https://github.com/Example/Repo",
+      owner: { login: "Example" },
+      name: "Repo",
+      description: "A project description",
+      stargazers_count: 42,
+      language: "TypeScript",
+    });
+    Object.defineProperty(response, "url", {
+      value: "https://api.github.com/repos/Example/Repo",
+    });
+    return response;
+  };
 
-  assert.equal(first.changed, true);
-  assert.equal(first.records.length, 1);
-  assert.equal(first.records[0]?.subtitle, "工具 · 小程序");
-  assert.equal(second.changed, false);
-  assert.equal(second.records.length, 1);
+  assert.deepEqual(
+    await fetchGitHubRepositoryMetadata("https://github.com/example/repo", {
+      fetchImpl,
+    }),
+    {
+      repositoryUrl: "https://github.com/Example/Repo",
+      owner: "Example",
+      name: "Repo",
+      description: "A project description",
+      stars: 42,
+      primaryLanguage: "TypeScript",
+    },
+  );
 });

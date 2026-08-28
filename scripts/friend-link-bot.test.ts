@@ -9,6 +9,7 @@ import {
   mergeFriendLinkIntoSource,
   normalizePublicHttpUrl,
   parseOpenSourceProjectIssueBody,
+  preferredProjectAvatarLogin,
   parseFriendLinkIssueBody,
   shouldReviewIssue,
   verifyReciprocalLink,
@@ -131,6 +132,16 @@ test("builds a stable, guarded migration for an open-source project", () => {
     },
     42,
     new Date("2026-08-27T10:11:12.000Z"),
+    {
+      repositoryUrl: "https://github.com/example/jufe-helper",
+      owner: "example",
+      name: "jufe-helper",
+      description: "GitHub description",
+      stars: 42,
+      avatarPath: "/campus-project-avatars/contributor.webp",
+      avatarLogin: "contributor",
+      primaryLanguage: "TypeScript",
+    },
   );
 
   assert.equal(migration.directoryName, "20260827101112_add_open_source_project_42");
@@ -142,6 +153,32 @@ test("builds a stable, guarded migration for an open-source project", () => {
   assert.match(migration.content, /O''Reilly/);
   assert.match(migration.content, /'校内开源项目'/);
   assert.match(migration.content, /lower\(rtrim\("url", '\/'\)\)/);
+  assert.match(migration.content, /INSERT INTO "RepositoryProfile"/);
+  assert.match(migration.content, /\/campus-project-avatars\/contributor\.webp/);
+  assert.match(migration.content, /\s42,/);
+});
+
+test("uses the submitting contributor avatar but keeps owner avatars for recommendations", () => {
+  const issue = {
+    created_at: "2026-08-27T10:11:12.000Z",
+    number: 42,
+    title: "[开源项目提交] helper",
+    user: { login: "student-contributor" },
+  };
+  const project = {
+    projectName: "helper",
+    projectUrl: "https://github.com/example/helper",
+    description: "helper",
+    relation: "参与开发者",
+    tags: [],
+    contact: "student",
+  };
+
+  assert.equal(preferredProjectAvatarLogin(issue, project), "student-contributor");
+  assert.equal(
+    preferredProjectAvatarLogin(issue, { ...project, relation: "推荐人" }),
+    undefined,
+  );
 });
 
 test("builds the open-source project review reminder", () => {

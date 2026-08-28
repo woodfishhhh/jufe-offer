@@ -1,6 +1,5 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
 import {
   useCallback,
   useEffect,
@@ -12,12 +11,10 @@ import {
   type PointerEvent,
 } from "react";
 
-export type DriftWallItem = {
-  image: string;
-  title: string;
-  subtitle?: string;
-  href: string;
-};
+import { RepositoryShowcaseCard } from "@/components/repository-showcase-card";
+import type { RepositoryCardData } from "@/lib/repository-card";
+
+export type DriftWallItem = RepositoryCardData;
 
 export type DriftWallProps = {
   items: DriftWallItem[];
@@ -317,21 +314,10 @@ export function DriftWall({
                         }
                         onFocus={() => activate(id, column)}
                         onBlur={release}
-                        aria-label={`查看 ${item.title} GitHub 仓库`}
+                        aria-label={`查看 ${item.owner}/${item.name} GitHub 仓库`}
                       >
                         <span className="drift-wall__inner">
-                          <img
-                            src={item.image}
-                            alt=""
-                            loading="lazy"
-                            decoding="async"
-                            draggable={false}
-                          />
-                          <span className="drift-wall__overlay" aria-hidden="true" />
-                          <span className="drift-wall__caption">
-                            <strong>{item.title}</strong>
-                            {item.subtitle ? <small>{item.subtitle}</small> : null}
-                          </span>
+                          <RepositoryShowcaseCard repository={item} variant="wall" />
                         </span>
                       </a>
                     );

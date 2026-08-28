@@ -1,59 +1,17 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
-import { readAdminSession } from "@/lib/auth";
 import { jsonError, jsonOk, zodErrorResponse } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { hasResourceAdminAccess } from "@/lib/resource-admin";
+import {
+  proxyRemoteResourceRequest,
+  shouldUseRemoteResources,
+} from "@/lib/remote-resources";
 import { toResourceDto } from "@/lib/resources";
 import { stringifyTags } from "@/lib/tags";
 import { resourceInputSchema, resourceQuerySchema } from "@/schemas/resource";
 
 export const dynamic = "force-dynamic";
-
-function shouldReadRemoteResources() {
-  return process.env.USE_REMOTE_RESOURCES?.trim().toLowerCase() === "true";
-}
-
-async function readRemoteResources(request: NextRequest) {
-  const remoteBaseUrl = process.env.REMOTE_RESOURCE_API_BASE_URL?.trim();
-  if (!remoteBaseUrl) {
-    return jsonError(
-      "已开启线上资源读取，但未配置 REMOTE_RESOURCE_API_BASE_URL。",
-      500,
-    );
-  }
-
-  try {
-    const remoteUrl = new URL("/api/resources", remoteBaseUrl);
-    if (!["http:", "https:"].includes(remoteUrl.protocol)) {
-      return jsonError("线上资源地址必须使用 HTTP 或 HTTPS。", 500);
-    }
-
-    remoteUrl.search = request.nextUrl.search;
-    if (remoteUrl.origin === request.nextUrl.origin) {
-      return jsonError("线上资源地址不能指向当前站点，避免代理循环。", 500);
-    }
-
-    const upstream = await fetch(remoteUrl, {
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(8_000),
-    });
-    const contentType = upstream.headers.get("content-type") ?? "";
-    if (!contentType.toLowerCase().includes("application/json")) {
-      return jsonError("线上资源接口返回了无法识别的数据。", 502);
-    }
-
-    return new Response(await upstream.text(), {
-      status: upstream.status,
-      headers: {
-        "content-type": "application/json; charset=utf-8",
-        "x-jufe-resource-source": "remote",
-      },
-    });
-  } catch {
-    return jsonError("线上资源暂时无法读取，请检查网络或远程地址。", 502);
-  }
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -68,8 +26,8 @@ export async function GET(request: NextRequest) {
       return zodErrorResponse(parsed.error);
     }
 
-    if (shouldReadRemoteResources()) {
-      return readRemoteResources(request);
+    if (shouldUseRemoteResources()) {
+      return proxyRemoteResourceRequest(request, "/api/resources");
     }
 
     const { q, category, featured, sort } = parsed.data;
@@ -94,6 +52,7 @@ export async function GET(request: NextRequest) {
 
     const resources = await prisma.resource.findMany({
       where,
+      include: { repositoryProfile: true },
       orderBy:
         sort === "title"
           ? [{ title: "asc" }, { updatedAt: "desc" }]
@@ -108,9 +67,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const isAdmin = await readAdminSession();
+    const isAdmin = await hasResourceAdminAccess(request);
     if (!isAdmin) {
       return jsonError("请先登录管理员账号。", 401);
+    }
+
+    if (shouldUseRemoteResources()) {
+      return proxyRemoteResourceRequest(request, "/api/resources");
     }
 
     let body: unknown;
@@ -136,6 +99,7 @@ export async function POST(request: NextRequest) {
         startsAt: parsed.data.startsAt ? new Date(parsed.data.startsAt) : null,
         deadlineAt: parsed.data.deadlineAt ? new Date(parsed.data.deadlineAt) : null,
       },
+      include: { repositoryProfile: true },
     });
 
     return jsonOk(toResourceDto(created), 201);

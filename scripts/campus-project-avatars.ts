@@ -1,24 +1,28 @@
 #!/usr/bin/env node
+import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
+import type { PrismaClient } from "@prisma/client";
 import sharp from "sharp";
+
+import {
+  isValidGitHubOwner,
+  parseGitHubRepositoryUrl,
+} from "../src/lib/github-repository";
+
+export { parseGitHubRepositoryUrl } from "../src/lib/github-repository";
 
 const AVATAR_EDGE = 320;
 const MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024;
 const MAX_INPUT_PIXELS = 4096 * 4096;
-const FETCH_TIMEOUT_MS = 15_000;
-const CAMPUS_PROJECTS_DATA_PATH = path.join("src", "data", "campus-projects.json");
+const FETCH_TIMEOUT_MS = 30_000;
 const CAMPUS_PROJECT_AVATARS_PATH = path.join("public", "campus-project-avatars");
-
-export type CampusProjectRecord = {
-  title: string;
-  subtitle?: string;
-  href: string;
-  image: string;
-};
+const CAMPUS_PROJECT_CATEGORY = "校内开源项目";
+const execFileAsync = promisify(execFile);
 
 export type CampusProjectSubmission = {
   projectName: string;
@@ -26,93 +30,37 @@ export type CampusProjectSubmission = {
   tags: string[];
 };
 
-export type GitHubRepository = {
+export type RepositorySnapshot = {
+  repositoryUrl: string;
   owner: string;
-  repository: string;
-  canonicalUrl: string;
+  name: string;
+  description: string | null;
+  stars: number;
+  avatarPath: string;
+  avatarLogin: string;
+  primaryLanguage: string | null;
 };
 
 export type AvatarSyncResult = {
   absolutePath: string;
   byteLength: number;
   changed: boolean;
-  owner: string;
+  login: string;
   publicPath: string;
   relativePath: string;
 };
 
 export type CampusProjectSyncResult = {
   avatar: AvatarSyncResult;
-  dataChanged: boolean;
+  repository: RepositorySnapshot;
   relativePaths: string[];
 };
 
-type FetchAvatarOptions = {
+type GitHubFetchOptions = {
+  avatarLogin?: string;
   fetchImpl?: typeof fetch;
+  githubToken?: string;
 };
-
-function isValidGitHubOwner(value: string) {
-  return (
-    value.length >= 1 &&
-    value.length <= 39 &&
-    /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/.test(value)
-  );
-}
-
-function isValidGitHubRepository(value: string) {
-  return (
-    value.length >= 1 &&
-    value.length <= 100 &&
-    value !== "." &&
-    value !== ".." &&
-    /^[A-Za-z0-9._-]+$/.test(value)
-  );
-}
-
-export function parseGitHubRepositoryUrl(value: string): GitHubRepository | null {
-  let parsed: URL;
-  try {
-    parsed = new URL(value.trim());
-  } catch {
-    return null;
-  }
-
-  if (
-    parsed.protocol !== "https:" ||
-    !["github.com", "www.github.com"].includes(parsed.hostname.toLowerCase()) ||
-    parsed.port ||
-    parsed.username ||
-    parsed.password ||
-    parsed.search ||
-    parsed.hash
-  ) {
-    return null;
-  }
-
-  const segments = parsed.pathname.split("/").filter(Boolean);
-  if (segments.length !== 2) {
-    return null;
-  }
-
-  const owner = segments[0];
-  const rawRepository = segments[1];
-  if (!owner || !rawRepository) {
-    return null;
-  }
-
-  const repository = rawRepository.toLowerCase().endsWith(".git")
-    ? rawRepository.slice(0, -4)
-    : rawRepository;
-  if (!isValidGitHubOwner(owner) || !isValidGitHubRepository(repository)) {
-    return null;
-  }
-
-  return {
-    owner,
-    repository,
-    canonicalUrl: `https://github.com/${owner}/${repository}`,
-  };
-}
 
 function isAllowedAvatarResponseUrl(value: string) {
   let parsed: URL;
@@ -127,6 +75,17 @@ function isAllowedAvatarResponseUrl(value: string) {
     parsed.protocol === "https:" &&
     (hostname === "github.com" || hostname === "avatars.githubusercontent.com")
   );
+}
+
+function isAllowedApiResponseUrl(value: string) {
+  try {
+    const parsed = new URL(value);
+    return (
+      parsed.protocol === "https:" && parsed.hostname.toLowerCase() === "api.github.com"
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function readResponseWithLimit(response: Response) {
@@ -161,6 +120,65 @@ async function readResponseWithLimit(response: Response) {
   return Buffer.concat(chunks, total);
 }
 
+async function downloadAvatarWithCurl(sourceUrl: string) {
+  const marker = "\n__JUFE_AVATAR_META__";
+  const { stdout } = await execFileAsync(
+    "curl",
+    [
+      "--fail",
+      "--location",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      String(FETCH_TIMEOUT_MS / 1_000),
+      "--max-filesize",
+      String(MAX_DOWNLOAD_BYTES),
+      "--proto",
+      "=https",
+      "--proto-redir",
+      "=https",
+      "--user-agent",
+      "jufe-offer-avatar-sync/1.0",
+      "--header",
+      "Accept: image/avif,image/webp,image/png,image/jpeg,*/*;q=0.5",
+      "--write-out",
+      `${marker}%{url_effective}|%{content_type}`,
+      sourceUrl,
+    ],
+    {
+      encoding: "buffer",
+      maxBuffer: MAX_DOWNLOAD_BYTES + 64 * 1024,
+      windowsHide: true,
+    },
+  );
+  const output = Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout);
+  const markerIndex = output.lastIndexOf(Buffer.from(marker));
+  if (markerIndex < 0) {
+    throw new Error("GitHub avatar download did not return response metadata.");
+  }
+
+  const downloaded = output.subarray(0, markerIndex);
+  const [responseUrl, contentType] = output
+    .subarray(markerIndex + Buffer.byteLength(marker))
+    .toString("utf8")
+    .split("|");
+  if (!responseUrl || !isAllowedAvatarResponseUrl(responseUrl)) {
+    throw new Error(
+      `GitHub avatar redirected to an unexpected URL: ${responseUrl ?? ""}`,
+    );
+  }
+  if (!contentType?.toLowerCase().startsWith("image/")) {
+    throw new Error(
+      `GitHub avatar returned an unexpected content type: ${contentType ?? ""}`,
+    );
+  }
+  if (!downloaded.length || downloaded.length > MAX_DOWNLOAD_BYTES) {
+    throw new Error("GitHub avatar download is empty or exceeds the size limit.");
+  }
+
+  return downloaded;
+}
+
 export async function compressCampusProjectAvatar(input: Buffer) {
   return sharp(input, {
     limitInputPixels: MAX_INPUT_PIXELS,
@@ -191,54 +209,141 @@ async function readFileIfPresent(filePath: string) {
   }
 }
 
-export async function syncGitHubAvatar(
-  repoRoot: string,
+function githubHeaders(token?: string) {
+  return {
+    Accept: "application/vnd.github+json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    "User-Agent": "jufe-offer-repository-sync/1.0",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+}
+
+export async function fetchGitHubRepositoryMetadata(
   projectUrl: string,
-  options: FetchAvatarOptions = {},
-): Promise<AvatarSyncResult> {
+  options: GitHubFetchOptions = {},
+): Promise<Omit<RepositorySnapshot, "avatarPath" | "avatarLogin">> {
   const repository = parseGitHubRepositoryUrl(projectUrl);
   if (!repository) {
     throw new Error(`Not a supported GitHub repository URL: ${projectUrl}`);
   }
 
   const fetchImpl = options.fetchImpl ?? fetch;
-  const sourceUrl = `https://github.com/${repository.owner}.png?size=460`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  let downloaded: Buffer;
 
   try {
-    const response = await fetchImpl(sourceUrl, {
-      headers: {
-        Accept: "image/avif,image/webp,image/png,image/jpeg,*/*;q=0.5",
-        "User-Agent": "jufe-offer-avatar-sync/1.0",
+    const response = await fetchImpl(
+      `https://api.github.com/repos/${encodeURIComponent(repository.owner)}/${encodeURIComponent(repository.repository)}`,
+      {
+        headers: githubHeaders(options.githubToken),
+        redirect: "follow",
+        signal: controller.signal,
       },
-      redirect: "follow",
-      signal: controller.signal,
-    });
+    );
 
     if (!response.ok) {
-      throw new Error(`GitHub avatar request failed with HTTP ${response.status}.`);
+      throw new Error(`GitHub repository request failed with HTTP ${response.status}.`);
     }
-    if (!isAllowedAvatarResponseUrl(response.url)) {
-      throw new Error(`GitHub avatar redirected to an unexpected URL: ${response.url}`);
-    }
-
-    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-    if (!contentType.startsWith("image/")) {
+    if (!isAllowedApiResponseUrl(response.url)) {
       throw new Error(
-        `GitHub avatar returned an unexpected content type: ${contentType}`,
+        `GitHub repository request returned an unexpected URL: ${response.url}`,
       );
     }
 
-    downloaded = await readResponseWithLimit(response);
+    const data = (await response.json()) as {
+      description?: unknown;
+      html_url?: unknown;
+      language?: unknown;
+      name?: unknown;
+      owner?: { login?: unknown };
+      stargazers_count?: unknown;
+    };
+    const canonical =
+      typeof data.html_url === "string" ? parseGitHubRepositoryUrl(data.html_url) : null;
+    const owner = typeof data.owner?.login === "string" ? data.owner.login : null;
+    const name = typeof data.name === "string" ? data.name : null;
+    const stars = data.stargazers_count;
+
+    if (
+      !canonical ||
+      !owner ||
+      !isValidGitHubOwner(owner) ||
+      !name ||
+      !Number.isSafeInteger(stars) ||
+      (stars as number) < 0
+    ) {
+      throw new Error("GitHub repository metadata is incomplete or invalid.");
+    }
+
+    return {
+      repositoryUrl: canonical.canonicalUrl,
+      owner,
+      name,
+      description: typeof data.description === "string" ? data.description : null,
+      stars: stars as number,
+      primaryLanguage: typeof data.language === "string" ? data.language : null,
+    };
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export async function syncGitHubAvatar(
+  repoRoot: string,
+  projectUrl: string,
+  options: GitHubFetchOptions = {},
+): Promise<AvatarSyncResult> {
+  const repository = parseGitHubRepositoryUrl(projectUrl);
+  if (!repository) {
+    throw new Error(`Not a supported GitHub repository URL: ${projectUrl}`);
+  }
+
+  const avatarLogin = options.avatarLogin ?? repository.owner;
+  if (!isValidGitHubOwner(avatarLogin)) {
+    throw new Error(`Not a valid GitHub avatar login: ${avatarLogin}`);
+  }
+
+  const sourceUrl = `https://github.com/${avatarLogin}.png?size=460`;
+  let downloaded: Buffer;
+
+  if (options.fetchImpl) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const response = await options.fetchImpl(sourceUrl, {
+        headers: {
+          Accept: "image/avif,image/webp,image/png,image/jpeg,*/*;q=0.5",
+          "User-Agent": "jufe-offer-avatar-sync/1.0",
+        },
+        redirect: "follow",
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`GitHub avatar request failed with HTTP ${response.status}.`);
+      }
+      if (!isAllowedAvatarResponseUrl(response.url)) {
+        throw new Error(`GitHub avatar redirected to an unexpected URL: ${response.url}`);
+      }
+
+      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+      if (!contentType.startsWith("image/")) {
+        throw new Error(
+          `GitHub avatar returned an unexpected content type: ${contentType}`,
+        );
+      }
+
+      downloaded = await readResponseWithLimit(response);
+    } finally {
+      clearTimeout(timeout);
+    }
+  } else {
+    downloaded = await downloadAvatarWithCurl(sourceUrl);
+  }
 
   const compressed = await compressCampusProjectAvatar(downloaded);
-  const owner = repository.owner.toLowerCase();
-  const relativePath = path.join(CAMPUS_PROJECT_AVATARS_PATH, `${owner}.webp`);
+  const login = avatarLogin.toLowerCase();
+  const relativePath = path.join(CAMPUS_PROJECT_AVATARS_PATH, `${login}.webp`);
   const absolutePath = path.join(repoRoot, relativePath);
   const previous = await readFileIfPresent(absolutePath);
   const changed = !previous?.equals(compressed);
@@ -252,185 +357,137 @@ export async function syncGitHubAvatar(
     absolutePath,
     byteLength: compressed.byteLength,
     changed,
-    owner,
-    publicPath: `/campus-project-avatars/${owner}.webp`,
+    login,
+    publicPath: `/campus-project-avatars/${login}.webp`,
     relativePath,
   };
-}
-
-function normalizeSubtitle(tags: string[]) {
-  const usefulTags = tags
-    .map((tag) => tag.replace(/\s+/g, " ").trim())
-    .filter(Boolean)
-    .filter((tag) => !["开源", "校园", "github"].includes(tag.toLowerCase()))
-    .slice(0, 2);
-  return usefulTags.length ? usefulTags.join(" · ") : "校内开源项目";
-}
-
-function sameRepository(left: string, right: string) {
-  const leftGitHub = parseGitHubRepositoryUrl(left);
-  const rightGitHub = parseGitHubRepositoryUrl(right);
-  if (leftGitHub && rightGitHub) {
-    return (
-      leftGitHub.canonicalUrl.toLowerCase() === rightGitHub.canonicalUrl.toLowerCase()
-    );
-  }
-  return (
-    left.replace(/\/+$/, "").toLowerCase() === right.replace(/\/+$/, "").toLowerCase()
-  );
-}
-
-export function mergeCampusProjectRecord(
-  records: CampusProjectRecord[],
-  submission: CampusProjectSubmission,
-  image: string,
-) {
-  const repository = parseGitHubRepositoryUrl(submission.projectUrl);
-  if (!repository) {
-    throw new Error(`Not a supported GitHub repository URL: ${submission.projectUrl}`);
-  }
-
-  const nextRecord: CampusProjectRecord = {
-    title: submission.projectName.replace(/\s+/g, " ").trim(),
-    subtitle: normalizeSubtitle(submission.tags),
-    href: repository.canonicalUrl,
-    image,
-  };
-  const index = records.findIndex((record) =>
-    sameRepository(record.href, repository.canonicalUrl),
-  );
-  const nextRecords = records.map((record) => ({ ...record }));
-
-  if (index === -1) {
-    nextRecords.push(nextRecord);
-  } else {
-    nextRecords[index] = {
-      ...nextRecord,
-      href: records[index]!.href,
-    };
-  }
-
-  return {
-    changed: JSON.stringify(records) !== JSON.stringify(nextRecords),
-    records: nextRecords,
-  };
-}
-
-function parseCampusProjectRecords(value: string) {
-  const parsed: unknown = JSON.parse(value);
-  if (!Array.isArray(parsed)) {
-    throw new Error(`${CAMPUS_PROJECTS_DATA_PATH} must contain an array.`);
-  }
-
-  return parsed.map((record, index) => {
-    if (
-      !record ||
-      typeof record !== "object" ||
-      typeof record.title !== "string" ||
-      typeof record.href !== "string" ||
-      typeof record.image !== "string" ||
-      (record.subtitle !== undefined && typeof record.subtitle !== "string")
-    ) {
-      throw new Error(`Invalid campus project record at index ${index}.`);
-    }
-    return record as CampusProjectRecord;
-  });
-}
-
-function formatCampusProjectRecords(records: CampusProjectRecord[]) {
-  return `${JSON.stringify(records, null, 2)}\n`;
 }
 
 export async function syncCampusProjectSubmission(
   repoRoot: string,
   submission: CampusProjectSubmission,
-  options: FetchAvatarOptions = {},
+  options: GitHubFetchOptions = {},
 ): Promise<CampusProjectSyncResult | null> {
   if (!parseGitHubRepositoryUrl(submission.projectUrl)) {
     return null;
   }
 
-  const avatar = await syncGitHubAvatar(repoRoot, submission.projectUrl, options);
-  const dataPath = path.join(repoRoot, CAMPUS_PROJECTS_DATA_PATH);
-  const records = parseCampusProjectRecords(await readFile(dataPath, "utf8"));
-  const merged = mergeCampusProjectRecord(records, submission, avatar.publicPath);
-
-  if (merged.changed) {
-    await writeFile(dataPath, formatCampusProjectRecords(merged.records), "utf8");
-  }
+  const metadata = await fetchGitHubRepositoryMetadata(submission.projectUrl, options);
+  const avatarLogin = options.avatarLogin ?? metadata.owner;
+  const avatar = await syncGitHubAvatar(repoRoot, metadata.repositoryUrl, {
+    ...options,
+    avatarLogin,
+  });
 
   return {
     avatar,
-    dataChanged: merged.changed,
-    relativePaths: [CAMPUS_PROJECTS_DATA_PATH, avatar.relativePath],
+    repository: {
+      ...metadata,
+      avatarPath: avatar.publicPath,
+      avatarLogin,
+    },
+    relativePaths: [avatar.relativePath],
   };
 }
 
-export async function syncAllCampusProjectAvatars(
-  repoRoot: string,
-  options: FetchAvatarOptions = {},
+function normalizedUrl(value: string) {
+  return value.replace(/\/+$/, "").toLowerCase();
+}
+
+async function upsertRepositoryProfile(
+  prisma: PrismaClient,
+  snapshot: RepositorySnapshot,
 ) {
-  const dataPath = path.join(repoRoot, CAMPUS_PROJECTS_DATA_PATH);
-  const records = parseCampusProjectRecords(await readFile(dataPath, "utf8"));
-  const repositoriesByOwner = new Map<string, GitHubRepository>();
-  let changed = false;
-
-  for (const record of records) {
-    const repository = parseGitHubRepositoryUrl(record.href);
-    if (!repository) {
-      continue;
-    }
-    repositoriesByOwner.set(repository.owner.toLowerCase(), repository);
-  }
-
-  const syncedAvatars = await Promise.all(
-    [...repositoriesByOwner.values()].map((repository) =>
-      syncGitHubAvatar(repoRoot, repository.canonicalUrl, options),
-    ),
+  const [resources, profiles] = await Promise.all([
+    prisma.resource.findMany({
+      where: { category: CAMPUS_PROJECT_CATEGORY },
+      select: { id: true, url: true },
+    }),
+    prisma.repositoryProfile.findMany({
+      select: { id: true, repositoryUrl: true },
+    }),
+  ]);
+  const resource = resources.find(
+    (candidate) => normalizedUrl(candidate.url) === normalizedUrl(snapshot.repositoryUrl),
   );
-  const avatars = new Map(syncedAvatars.map((avatar) => [avatar.owner, avatar] as const));
+  const existing = profiles.find(
+    (candidate) =>
+      normalizedUrl(candidate.repositoryUrl) === normalizedUrl(snapshot.repositoryUrl),
+  );
+  const data = {
+    repositoryUrl: snapshot.repositoryUrl,
+    owner: snapshot.owner,
+    name: snapshot.name,
+    description: snapshot.description,
+    stars: snapshot.stars,
+    avatarPath: snapshot.avatarPath,
+    avatarLogin: snapshot.avatarLogin,
+    primaryLanguage: snapshot.primaryLanguage,
+    resourceId: resource?.id ?? null,
+    syncedAt: new Date(),
+  };
 
-  for (const record of records) {
-    const repository = parseGitHubRepositoryUrl(record.href);
-    if (!repository) {
-      continue;
-    }
-    const avatar = avatars.get(repository.owner.toLowerCase());
-    if (!avatar) {
-      continue;
-    }
-    if (record.image !== avatar.publicPath) {
-      record.image = avatar.publicPath;
-      changed = true;
-    }
+  if (existing) {
+    await prisma.repositoryProfile.update({ where: { id: existing.id }, data });
+  } else {
+    await prisma.repositoryProfile.create({ data });
+  }
+}
+
+async function syncRepositoryToDatabase(
+  prisma: PrismaClient,
+  repoRoot: string,
+  repositoryUrl: string,
+  githubToken?: string,
+) {
+  const result = await syncCampusProjectSubmission(
+    repoRoot,
+    { projectName: repositoryUrl, projectUrl: repositoryUrl, tags: [] },
+    { githubToken },
+  );
+  if (!result) {
+    throw new Error(`Not a supported GitHub repository URL: ${repositoryUrl}`);
   }
 
-  if (changed) {
-    await writeFile(dataPath, formatCampusProjectRecords(records), "utf8");
-  }
-
-  return { avatars: [...avatars.values()], dataChanged: changed };
+  await upsertRepositoryProfile(prisma, result.repository);
+  return result;
 }
 
 async function main() {
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-  const projectUrls = process.argv.slice(2);
+  const requestedUrls = process.argv.slice(2);
+  const githubToken = process.env.GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim();
+  const { PrismaClient } = await import("@prisma/client");
+  const prisma = new PrismaClient();
 
-  if (projectUrls.length) {
-    for (const projectUrl of projectUrls) {
-      const result = await syncGitHubAvatar(repoRoot, projectUrl);
+  try {
+    const repositoryUrls = requestedUrls.length
+      ? requestedUrls
+      : (
+          await prisma.repositoryProfile.findMany({
+            orderBy: { repositoryUrl: "asc" },
+            select: { repositoryUrl: true },
+          })
+        ).map((profile) => profile.repositoryUrl);
+
+    if (!repositoryUrls.length) {
+      console.log("No repository profiles found to sync.");
+      return;
+    }
+
+    for (const repositoryUrl of repositoryUrls) {
+      const result = await syncRepositoryToDatabase(
+        prisma,
+        repoRoot,
+        repositoryUrl,
+        githubToken,
+      );
       console.log(
-        `${result.changed ? "Updated" : "Unchanged"} ${result.publicPath} (${result.byteLength} bytes)`,
+        `${result.avatar.changed ? "Updated" : "Unchanged"} ${result.repository.owner}/${result.repository.name}: ${result.repository.stars} stars, ${result.avatar.byteLength} avatar bytes`,
       );
     }
-    return;
-  }
-
-  const result = await syncAllCampusProjectAvatars(repoRoot);
-  for (const avatar of result.avatars) {
-    console.log(
-      `${avatar.changed ? "Updated" : "Unchanged"} ${avatar.publicPath} (${avatar.byteLength} bytes)`,
-    );
+  } finally {
+    await prisma.$disconnect();
   }
 }
 

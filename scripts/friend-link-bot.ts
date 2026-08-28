@@ -9,7 +9,10 @@ import { promisify } from "node:util";
 
 import { chromium } from "playwright";
 
-import { syncCampusProjectSubmission } from "./campus-project-avatars";
+import {
+  syncCampusProjectSubmission,
+  type RepositorySnapshot,
+} from "./campus-project-avatars";
 
 const execFileAsync = promisify(execFile);
 
@@ -45,6 +48,7 @@ export interface GitHubIssue {
   pull_request?: unknown;
   state?: string;
   title: string;
+  user?: { login?: string | null } | null;
 }
 
 export interface OpenSourceProjectMigration {
@@ -375,6 +379,7 @@ export function buildOpenSourceProjectMigration(
   project: OpenSourceProjectIssueData,
   issueNumber: number,
   createdAt = new Date(),
+  repository?: RepositorySnapshot,
 ): OpenSourceProjectMigration {
   if (!Number.isSafeInteger(issueNumber) || issueNumber < 1) {
     throw new Error("A positive GitHub issue number is required.");
@@ -393,7 +398,7 @@ export function buildOpenSourceProjectMigration(
   );
   const resourceId = `open_source_issue_${issueNumber}`;
   const tags = JSON.stringify(project.tags);
-  const content = [
+  const resourceInsert = [
     `-- Added from GitHub issue #${issueNumber} by jufe-offer-open-source-bot.`,
     'INSERT INTO "Resource" (',
     '  "id", "title", "description", "url", "category", "tags",',
@@ -416,10 +421,51 @@ export function buildOpenSourceProjectMigration(
     '  SELECT 1 FROM "Resource"',
     `  WHERE lower(rtrim("url", '/')) = lower(rtrim(${sqlString(projectUrl)}, '/'))`,
     ");",
-    "",
   ].join("\n");
+  const repositoryInsert = repository
+    ? [
+        "",
+        `-- Cache the GitHub repository profile used by every project-card surface.`,
+        'INSERT INTO "RepositoryProfile" (',
+        '  "id", "repositoryUrl", "owner", "name", "description", "stars",',
+        '  "avatarPath", "avatarLogin", "primaryLanguage", "resourceId",',
+        '  "syncedAt", "createdAt", "updatedAt"',
+        ")",
+        "SELECT",
+        `  ${sqlString(`repository_issue_${issueNumber}`)},`,
+        `  ${sqlString(repository.repositoryUrl)},`,
+        `  ${sqlString(repository.owner)},`,
+        `  ${sqlString(repository.name)},`,
+        `  ${repository.description ? sqlString(repository.description) : "NULL"},`,
+        `  ${repository.stars},`,
+        `  ${sqlString(repository.avatarPath)},`,
+        `  ${sqlString(repository.avatarLogin)},`,
+        `  ${repository.primaryLanguage ? sqlString(repository.primaryLanguage) : "NULL"},`,
+        `  (SELECT "id" FROM "Resource" WHERE lower(rtrim("url", '/')) = lower(rtrim(${sqlString(repository.repositoryUrl)}, '/')) LIMIT 1),`,
+        "  CURRENT_TIMESTAMP,",
+        "  CURRENT_TIMESTAMP,",
+        "  CURRENT_TIMESTAMP",
+        "WHERE NOT EXISTS (",
+        '  SELECT 1 FROM "RepositoryProfile"',
+        `  WHERE lower(rtrim("repositoryUrl", '/')) = lower(rtrim(${sqlString(repository.repositoryUrl)}, '/'))`,
+        ");",
+      ].join("\n")
+    : "";
+  const content = `${resourceInsert}${repositoryInsert}\n`;
 
   return { directoryName, relativePath, content };
+}
+
+export function preferredProjectAvatarLogin(
+  issue: GitHubIssue,
+  project: OpenSourceProjectIssueData,
+) {
+  const submitterLogin = issue.user?.login?.trim();
+  if (!submitterLogin) return undefined;
+
+  return /(贡献|参与|开发|contributor|developer)/i.test(project.relation)
+    ? submitterLogin
+    : undefined;
 }
 
 export function shouldReviewIssue(
@@ -1072,22 +1118,29 @@ async function reviewOpenSourceProjectIssue(issue: GitHubIssue, github: GitHubCl
     repoRoot,
     issue.number,
   );
+  const campusProjectSync = await syncCampusProjectSubmission(repoRoot, project, {
+    avatarLogin: preferredProjectAvatarLogin(issue, project),
+    githubToken: process.env.GITHUB_TOKEN?.trim(),
+  });
+  if (!campusProjectSync) {
+    console.log(
+      `Project #${issue.number} is not hosted on GitHub; skipping repository metadata and avatar sync.`,
+    );
+  }
   const migration = existingRelativePath
     ? null
-    : buildOpenSourceProjectMigration(project, issue.number);
+    : buildOpenSourceProjectMigration(
+        project,
+        issue.number,
+        new Date(),
+        campusProjectSync?.repository,
+      );
   const relativePath = existingRelativePath ?? migration!.relativePath;
 
   if (migration) {
     const migrationPath = path.join(repoRoot, relativePath);
     await mkdir(path.dirname(migrationPath), { recursive: true });
     await writeFile(migrationPath, migration.content, "utf8");
-  }
-
-  const campusProjectSync = await syncCampusProjectSubmission(repoRoot, project);
-  if (!campusProjectSync) {
-    console.log(
-      `Project #${issue.number} is not hosted on GitHub; skipping avatar and home-wall sync.`,
-    );
   }
 
   const commitSha = await commitAndPushOpenSourceProject(
@@ -1103,8 +1156,8 @@ async function reviewOpenSourceProjectIssue(issue: GitHubIssue, github: GitHubCl
       PROJECT_SUCCESS_COMMENT_MARKER,
       "项目提交已通过自动校验，已加入校内开源项目资源页。",
       campusProjectSync
-        ? "GitHub 头像已压缩为站内 WebP，并同步到首页项目墙。"
-        : "该项目不是 GitHub 仓库，因此未同步 GitHub 头像和首页项目墙。",
+        ? "仓库描述、Star、主语言和头像已同步；头像已压缩为站内 WebP，首页项目墙与资源页会共用同一份数据库档案。"
+        : "该项目不是 GitHub 仓库，因此没有可同步的 GitHub 仓库档案。",
       commitSha
         ? `已提交到 main：${commitSha}，GitHub Actions 会继续构建、执行数据库迁移并部署。`
         : "该 Issue 对应的项目提交已经存在，这次没有产生新的提交。",

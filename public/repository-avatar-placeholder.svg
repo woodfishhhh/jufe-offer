@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Repository avatar placeholder</title>
+  <desc id="desc">A neutral code repository placeholder.</desc>
+  <rect width="160" height="160" rx="80" fill="#171717"/>
+  <circle cx="80" cy="80" r="68" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="2"/>
+  <path d="M64 56 40 80l24 24M96 56l24 24-24 24M89 44 71 116" fill="none" stroke="#ffffff" stroke-opacity="0.72" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

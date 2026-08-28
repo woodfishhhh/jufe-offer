@@ -1,51 +1,69 @@
+<p align="center">
+  <img src="assets/readme/hero.svg" width="100%" alt="江财OFFER — 江财学生资源导航" />
+</p>
+
 # 江财OFFER
 
-江财OFFER 是由江西财经大学学生自发维护的资源导航网站，用来汇总实习校招、编程学习、竞赛活动、校内开源项目、面经、优秀简历和校内常用入口。
+一个把实习、竞赛、学习资源与校内开源项目集中起来的江财学生资源导航。
 
-网站保持轻量，只有三个页面：
+<p>
+  <a href="https://jufe.woodfish.site"><strong>访问线上站点</strong></a>
+  · <a href="https://jufe.woodfish.site/resources">浏览资源目录</a>
+  · <a href="https://github.com/woodfishhhh/jufe-offer/issues/new?template=open-source-project.yml">提交校内开源项目</a>
+</p>
 
-- `/` 欢迎页
-- `/resources` 资源页
-- `/friends` 友链页
+> 江财OFFER 由学生自发维护，是非官方社区，不代表江西财经大学官方立场。
 
-江财OFFER是学生自发维护的非官方社区，不代表江西财经大学官方立场。
+## 先看成品
 
-## 技术栈
+<p align="center">
+  <img src="assets/readme/resources.webp" width="100%" alt="江财OFFER 校内开源项目资源页" />
+</p>
 
-- pnpm
-- Next.js App Router
-- React
-- TypeScript
-- Tailwind CSS
-- Prisma ORM
-- SQLite
-- Zod
-- ESLint
-- Prettier
+- 首页使用 `01—06` 六页叙事，把资源、校内项目、社群和项目本身串起来。
+- 资源页提供搜索、分类、排序、精选筛选和管理员 CRUD。
+- 校内开源项目展示真实仓库名、Description、Star、主语言与 owner / 投稿贡献者头像。
+- 首页第 4 页和资源页复用同一份数据库记录与同一张黑色仓库卡片。
 
-## 本地安装
+## 校内项目如何进入页面
 
-在项目目录 `jufe-offer/` 中执行：
+<p align="center">
+  <picture>
+    <source media="(max-width: 640px)" srcset="assets/readme/project-flow-mobile.svg" />
+    <img src="assets/readme/project-flow.svg" width="100%" alt="校内开源项目投稿、同步、存储和展示流程" />
+  </picture>
+</p>
 
-```bash
-pnpm install
-```
+`Resource` 决定项目是否出现在公开资源中，`RepositoryProfile` 保存 GitHub 展示资料。首页按请求读取数据库，因此删除资源后不会继续被旧静态名单展示。头像在同步阶段压缩并站内化，页面运行时不会再请求 GitHub 头像。
 
-## 配置环境变量
+## 技术构成
 
-复制示例文件：
+| 层     | 选择                                              |
+| ------ | ------------------------------------------------- |
+| Web    | Next.js 16 App Router、React 19、TypeScript       |
+| UI     | Tailwind CSS、Motion、GSAP、Three.js              |
+| 数据   | Prisma ORM、SQLite、Zod                           |
+| 自动化 | GitHub Actions、Issue Bot、仓库资料与头像同步工具 |
+| 部署   | Next.js standalone、systemd blue/green、Nginx     |
 
-```bash
-cp .env.example .env
-```
+## 快速开始
 
-Windows PowerShell：
+需要 Node.js 24 和 pnpm。Windows PowerShell：
 
 ```powershell
+pnpm install
 Copy-Item .env.example .env
+pnpm db:generate
+pnpm prisma migrate deploy
+pnpm db:seed
+pnpm dev
 ```
 
-至少填写：
+打开 <http://localhost:3000>。`pnpm db:seed` 只用于初始化演示数据；已有真实数据时不要重复覆盖。
+
+### 环境变量
+
+最小本地配置：
 
 ```env
 DATABASE_URL="file:./dev.db"
@@ -54,231 +72,136 @@ ADMIN_PASSWORD_HASH=
 SESSION_SECRET=
 OPENCLAW_INGEST_TOKEN=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
-HTML_IN_CANVAS_OT_TOKEN=
 ```
 
-`SESSION_SECRET` 请换成足够长的随机字符串，例如：
+生成随机密钥：
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-OpenClaw 入库 Token 也可以用同一条命令单独生成。它必须至少 32 个字符，
-且不能与管理员密码或 `SESSION_SECRET` 复用：
-
-```env
-OPENCLAW_INGEST_TOKEN=生成的随机十六进制字符串
-```
-
-## 生成管理员密码哈希
-
-不要把明文密码写进源码。先准备一个密码，然后生成哈希：
+生成管理员密码哈希：
 
 ```bash
 pnpm hash-password -- 你的密码
 ```
 
-`pnpm hash-password` 会同时输出 bcrypt 哈希和 hex 值。推荐把 hex 值粘贴到 `.env`：
+推荐把命令输出的 hex 值写入 `ADMIN_PASSWORD_HASH`。如果直接使用 bcrypt 字符串，需要把每个 `$` 写成 `$$`，避免被 Next.js 当成环境变量展开。
 
-```env
-ADMIN_PASSWORD_HASH=24326224...
-```
+SQLite 默认位于 `prisma/dev.db`，因为 `DATABASE_URL="file:./dev.db"` 相对 `prisma/` 目录解析。完整字段及说明见 [.env.example](.env.example)。
 
-如果坚持使用原始 bcrypt 字符串，请把每个 `$` 写成 `$$`，否则 Next.js 会把它当成环境变量展开，导致无法登录。
-
-本地演示可以用：
+## 日常开发
 
 ```bash
-pnpm hash-password -- jufe-offer-dev
+pnpm lint
+pnpm typecheck
+pnpm test:friend-links
+pnpm build
 ```
 
-对应账号：
-
-- 用户名：`.env` 中的 `ADMIN_USERNAME`，示例为 `admin`
-- 密码：你刚才用来生成哈希的明文密码
-
-## 初始化 SQLite 数据库
-
-Prisma 会把 SQLite 文件写到：
-
-```text
-jufe-offer/prisma/dev.db
-```
-
-这是因为 `.env` 中的 `DATABASE_URL="file:./dev.db"` 相对 `prisma/` 目录解析。
-
-生成 Prisma Client：
-
-```bash
-pnpm db:generate
-```
-
-## 运行 Prisma migration
-
-首次初始化：
-
-```bash
-pnpm prisma migrate dev --name init
-```
-
-之后如果改了 `prisma/schema.prisma`，再执行：
+数据库结构变化后：
 
 ```bash
 pnpm db:migrate
 ```
 
-生产环境使用：
+生产环境只执行已有 migration：
 
 ```bash
 pnpm prisma migrate deploy
 ```
 
-## 导入演示数据
+## 管理资源
 
-```bash
-pnpm db:seed
+普通方式是在资源页登录管理员账号。登录后可以新增、编辑和删除资源；所有写操作都会在服务端再次验证管理员会话，退出后权限立即失效。
+
+### 让本机管理线上资源
+
+本项目支持“本机后台 → 本机 Next.js 服务端 → 线上资源 API”的受控代理。它不会开放 SQLite 文件、SSH 或任意系统权限，也不会把管理 Token 发送到浏览器。
+
+本机 `.env.local`：
+
+```env
+USE_REMOTE_RESOURCES=true
+REMOTE_RESOURCE_API_BASE_URL=https://jufe.woodfish.site
+RESOURCE_ADMIN_API_TOKEN=至少32字符的独立随机Token
 ```
 
-这会写入 50 条公开资源。演示数据使用真实官网链接，不包含伪造招聘或虚假截止日期。
+线上服务器 `/opt/jufe-offer/.env` 必须配置同一份 `RESOURCE_ADMIN_API_TOKEN` 并重启当前应用 slot。完成后，在本机站点使用管理员账号登录，资源页的增删改会由本机服务端代理到线上；列表读取也来自线上。
 
-## 启动开发环境
+安全边界：
 
-```bash
-pnpm dev
-```
-
-浏览器打开 [http://localhost:3000](http://localhost:3000)。
-
-## 静态检查和生产构建
-
-```bash
-pnpm lint
-pnpm typecheck
-pnpm build
-```
-
-构建完成后可用：
-
-```bash
-pnpm start
-```
-
-## 修改资源分类
-
-分类集中写在：
-
-```text
-src/data/categories.ts
-```
-
-修改 `CATEGORY_VALUES` 后，资源表单、筛选和接口校验会一起更新。不需要单独的分类管理后台。
-
-## 修改友链
-
-友链不走数据库，直接编辑：
-
-```text
-src/data/friends.ts
-```
-
-按现有对象补充 `name`、`description`、`url`、`category` 即可。可选 `icon` 字段；没有图标或图标加载失败时，页面会显示名称首字母。
-
-友链页的“提交友链”会打开预填好的 GitHub Issue。`.github/workflows/friend-link-bot.yml` 会在新 Issue 下回复申请说明，并在每天北京时间 00:00 检查待处理申请：确认对方友链页存在江财OFFER的反向链接后，机器人会把站点写入 `src/data/friends.ts` 的 `personal` 分组、提交到 `main`，再触发现有 CI/CD 部署。客户端渲染、懒加载或临时访问保护导致无法判断时，Issue 会保持打开并在下一轮重试。
+- `RESOURCE_ADMIN_API_TOKEN` 只能存在于服务端环境，绝不能使用 `NEXT_PUBLIC_` 前缀。
+- 它只授权 `/api/resources` 的增删改查，不授权其他集成接口。
+- 本机浏览器的 Cookie 或 Authorization 不会原样转发；代理会替换为服务端 Token。
+- `SESSION_SECRET`、管理员密码、`OPENCLAW_INGEST_TOKEN` 与该 Token 必须分别生成，不能复用。
+- 未配置 Token 时，远程写请求返回 HTTP 503；Token 错误时线上返回 HTTP 401。
 
 ## 提交校内开源项目
 
-资源页“校内开源项目”分类顶部的“提交自己的项目”会打开预填好的 GitHub Issue。它和友链申请共用 `.github/workflows/friend-link-bot.yml`：机器人每天北京时间 00:00 检查已等待至少 1 小时的申请，校验项目资料、公开地址和本校同学创立或参与的声明；通过后会生成一条带重复 URL 防护的 Prisma migration。GitHub 仓库还会自动抓取项目 owner 的头像，压缩为 320×320 WebP 保存到 `public/campus-project-avatars/`，并把项目同步到首页项目墙。随后机器人提交到 `main`，再由现有 CI/CD 执行数据库迁移并部署。信息不完整或地址不可公开访问的 Issue 会自动说明原因并关闭。
+资源页“校内开源项目”分类顶部的“提交自己的项目”会打开 GitHub Issue。机器人会：
 
-需要手动刷新全部项目头像时，运行 `pnpm sync:campus-project-avatars`；也可以在命令后附一个或多个 GitHub 仓库地址，只压缩对应 owner 的头像。
+1. 校验仓库地址、项目信息和本校同学创立或参与的声明。
+2. 读取 GitHub 仓库名、Description、Star 和主语言。
+3. 优先使用参与开发的 Issue 投稿者头像，否则使用仓库 owner 头像。
+4. 将头像裁剪压缩为 `320×320 WebP`，保存到 `public/campus-project-avatars/`。
+5. 生成带重复 URL 防护的 Prisma migration，由 CI/CD 迁移并部署。
 
-## 替换 QQ 群号
+手动刷新全部仓库资料与头像：
 
-编辑：
+```bash
+pnpm sync:campus-projects
+```
+
+也可以只同步指定仓库：
+
+```bash
+pnpm sync:campus-projects -- https://github.com/owner/repository
+```
+
+旧命令 `pnpm sync:campus-project-avatars` 仍作为兼容别名保留。
+
+## 内容维护
+
+- 资源分类：修改 [`src/data/categories.ts`](src/data/categories.ts) 的 `CATEGORY_VALUES`。
+- 友链：修改 [`src/data/friends.ts`](src/data/friends.ts)；友链申请由 Issue Bot 定时核验反向链接。
+- 站点信息、QQ群号与二维码：修改 [`src/data/site.ts`](src/data/site.ts) 及对应 `public/` 资产。
+- 仓库头像同步工具：[`scripts/campus-project-avatars.ts`](scripts/campus-project-avatars.ts)。
+- 投稿与友链机器人：[`scripts/friend-link-bot.ts`](scripts/friend-link-bot.ts)。
+
+首页 HTML-in-Canvas 只是 Chrome Origin Trial 增强层。Safari、Firefox、未命中 Trial、低性能设备或 WebGL 初始化失败时，普通 DOM 内容仍会保留。
+
+<details>
+<summary><strong>OpenClaw 自动入库接口</strong></summary>
+
+OpenClaw 使用独立 Bearer Token：
 
 ```text
-src/data/site.ts
+POST /api/integrations/openclaw/candidates
+Authorization: Bearer <OPENCLAW_INGEST_TOKEN>
+Content-Type: application/json
 ```
 
-把 `qqGroupNumber` 从空字符串改成真实群号，例如：
+请求会先保存完整 `Candidate`，再在同一事务中建立 `Resource` 并标记为 `APPROVED`。相同 `dedupeKey` 或相同正式资源 URL 不会重复发布；已完成状态不能被覆盖。正式资源继续保留 `SEED`、`MANUAL` 或 `OPENCLAW` 来源字段，但公开页面不依赖来源标签区分资源。
 
-```ts
-qqGroupNumber: "123456789",
-```
+接口使用 strict schema、64 KiB 请求体上限、HTTPS 链接限制和单实例每分钟 60 次速率限制。允许分类与请求结构以 [`src/schemas/candidate.ts`](src/schemas/candidate.ts) 为准。
 
-欢迎页的“复制群号”按钮会复制这个值。
+</details>
 
-## 替换 QQ 群二维码
+<details>
+<summary><strong>生产部署与 SQLite 备份</strong></summary>
 
-默认占位图是：
+`.github/workflows/ci-deploy.yml` 在 Pull Request 上执行 lint、类型检查和生产构建；`main` 更新后部署到京东云。生产采用 standalone blue/green release：候选 slot 通过 revision health 后才切换 Nginx，上一个 release 保留用于恢复。
 
-```text
-public/qq-group-placeholder.svg
-```
+Migration 变化默认进入 maintenance：停止活动应用、checkpoint WAL、使用 SQLite `.backup` 建立一致快照、执行 migration，再启动候选版本。人工确认新旧 schema 兼容后，才可在 workflow dispatch 选择 `compatible`。
 
-替换方式：
+服务器 `/opt/jufe-offer/.env` 和 SQLite 数据库不进入构建产物。完整拓扑、权限、切流与失败恢复流程见 [`deploy/README.md`](deploy/README.md)。
 
-1. 把真实二维码图片放到 `public/`，例如 `public/qq-group.png`
-2. 修改 `src/data/site.ts` 中的 `qqGroupQrSrc`：
-
-```ts
-qqGroupQrSrc: "/qq-group.png",
-```
-
-## 部署到普通 Linux 服务器
-
-适合一台普通 Node.js 服务器，不依赖 Docker 或云数据库。
-
-1. 安装 Node.js 20+ 和 pnpm。
-2. 把项目上传到服务器，例如 `/var/www/jufe-offer`。
-3. 复制环境变量：
+手动备份示例：
 
 ```bash
-cp .env.example .env
-```
-
-4. 填写生产环境变量：
-
-```env
-DATABASE_URL="file:./dev.db"
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD_HASH=生产环境哈希
-SESSION_SECRET=生产环境随机密钥
-OPENCLAW_INGEST_TOKEN=生产环境独立随机密钥
-NEXT_PUBLIC_SITE_URL=https://your-domain.example
-HTML_IN_CANVAS_OT_TOKEN=Chrome Origin Trial token（可选）
-```
-
-5. 安装依赖、迁移数据库并构建：
-
-```bash
-pnpm install --frozen-lockfile
-pnpm prisma migrate deploy
-pnpm db:seed
-pnpm build
-```
-
-`pnpm db:seed` 只在需要演示数据时执行。已有真实数据时不要重复覆盖。
-
-6. 启动：
-
-```bash
-pnpm start
-```
-
-默认监听 `3000` 端口。可用 systemd 托管，再用 Nginx 反代到该端口。生产环境请使用 HTTPS，这样登录 Cookie 会启用 `Secure`。
-
-## 备份 SQLite 数据库
-
-数据库文件默认在：
-
-```text
-prisma/dev.db
-```
-
-备份时直接复制该文件即可，例如：
-
-```bash
-cp prisma/dev.db backups/dev-$(date +%Y%m%d).db
+mkdir -p backups
+cp prisma/dev.db "backups/dev-$(date +%Y%m%d).db"
 ```
 
 Windows PowerShell：
@@ -288,115 +211,17 @@ New-Item -ItemType Directory -Force backups | Out-Null
 Copy-Item prisma/dev.db "backups/dev-$(Get-Date -Format yyyyMMdd).db"
 ```
 
-## CI/CD
+</details>
 
-`.github/workflows/ci-deploy.yml` 会在 Pull Request 上执行 lint、类型检查和生产构建；`main` 更新后还会自动部署到京东云。
-
-生产部署使用 blue/green standalone release：GitHub 缓存 pnpm、`.next/cache`、ESLint 和 TypeScript 增量信息；产物通过 `rsync --checksum --link-dest` 同步到固定 staging 目录，内容未变化的文件不重复传输，并在 release 之间使用 hardlink。候选版本先在备用端口启动并通过 revision health，随后才让容器 Nginx graceful 切流。
-
-只有生产 release 和候选 release 的 Prisma migrations 不同时才进入 SQLite 流程。自动发布默认使用可恢复的 maintenance 模式；人工确认 schema 向后兼容后，才可在 workflow dispatch 中显式选择 compatible。完整架构、失败处理和一次性服务器迁移命令见 [deploy/README.md](deploy/README.md)。
-
-仓库需要配置以下 GitHub Actions Secrets：
-
-- `DEPLOY_HOST`
-- `DEPLOY_PORT`
-- `DEPLOY_USER`
-- `DEPLOY_SSH_KEY`
-- `DEPLOY_KNOWN_HOSTS`
-- `HTML_IN_CANVAS_OT_TOKEN`（可选；生产构建时注入，不能只在服务器运行时环境中填写）
-
-服务器端部署账号可以写入 `/opt/jufe-offer`，并且只被授权管理 `jufe-offer@blue.service`、`jufe-offer@green.service` 和调用固定 Nginx slot helper。应用仍由非 root 用户运行，生产环境变量和数据库不会进入构建产物。
-
-### HTML-in-Canvas 渐进增强
-
-首页的 HTML-in-Canvas 只作为 Chrome Origin Trial 增强层。配置
-`HTML_IN_CANVAS_OT_TOKEN` 后，CI 构建会在所有响应上返回 `Origin-Trial` Header；
-Safari、Firefox、未命中 Trial、低性能设备和 WebGL 初始化失败时，会保留普通 DOM 内容，
-不会因为实验 API 不可用而出现空白首页。Origin Trial token 会按设计出现在响应 Header 中，
-它不是应用登录密钥；仍需注意 token 的 origin 和有效期。
-
-## 管理员使用方式
-
-1. 打开资源页。
-2. 点击导航栏右侧的“管理员登录”。
-3. 登录成功后，资源页会出现“新增资源”，每条资源会出现“编辑”和“删除”。
-4. OpenClaw 核验合格的候选会直接成为正式资源，不再进入管理员审核队列。
-5. 删除正式资源前会二次确认，并显示资源名称。
-6. 退出登录后立即失去新增、修改和删除权限。
-7. 登录 Cookie 是当前浏览器会话，关闭浏览器后需要重新登录。
-
-未登录用户仍可浏览、搜索和筛选资源。所有写操作都会在服务端校验管理员身份。
-
-## OpenClaw 候选入库接口
-
-OpenClaw 使用独立的 Bearer Token 调用：
+## 项目结构
 
 ```text
-POST /api/integrations/openclaw/candidates
-Authorization: Bearer <OPENCLAW_INGEST_TOKEN>
-Content-Type: application/json
+src/app/                 页面与 API Route Handlers
+src/components/          首页、资源页与共享仓库卡片
+src/lib/                 Prisma、鉴权、远程资源代理与数据映射
+prisma/                  schema、seed 与可追踪 migrations
+scripts/                 投稿机器人、头像同步与维护工具
+public/                  站内图片、模型与压缩头像
+deploy/                  blue/green 部署脚本和运维说明
+assets/readme/           README 的 SVG 与压缩实机截图
 ```
-
-OpenClaw 不使用管理员用户名或密码，也不能直接访问 SQLite。请求继续保留
-`disposition` 字段以兼容旧提交器，但服务端统一按 `AUTO_PUBLISH` 处理：先保存完整
-Candidate，再在同一事务中创建 Resource 并把 Candidate 标为 `APPROVED`。
-
-接口不会删除或修改已有正式资源。相同 `dedupeKey` 不会建立第二条候选；自动发布时如发现正式资源中已有相同 URL，会把候选标记为 `DUPLICATE`。已进入
-`APPROVED`、`REJECTED` 或 `DUPLICATE` 的候选不能被 OpenClaw 覆盖或重新发布。
-
-请求体最多 64 KiB，使用 strict schema，所有链接必须是 HTTPS。允许的分类只有：
-
-- `INTERNSHIP`
-- `CAMPUS_RECRUITMENT`
-- `REFERRAL`
-- `COMPETITION`
-- `HACKATHON`
-- `OPEN_SOURCE_RESOURCE`
-- `TRAINING`
-- `PROGRAMMING_LEARNING`
-- `LEARNING_PATH`
-- `PROGRAMMING_TOOL`
-- `CAREER_EXPERIENCE`
-- `RESUME_INTERVIEW`
-- `CAMPUS_RESOURCE`
-- `OTHER_RESOURCE`
-
-公开开源活动与资源可以使用 `OPEN_SOURCE_RESOURCE` 自动发现并直接发布，但不得推断
-江财成员关系。`REFERRAL` 和 `OTHER_RESOURCE` 当前没有自动发现来源；如果提交为合格
-候选，服务端同样直接发布。
-
-允许的 `sourceType`：`RSSHUB`、`OFFICIAL_API`、`OFFICIAL_PAGE`、
-`WEB_MONITOR`、`MANUAL_RESEARCH`。
-
-请求示例：
-
-```json
-{
-  "externalId": "nowcoder:123456",
-  "dedupeKey": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-  "disposition": "AUTO_PUBLISH",
-  "category": "INTERNSHIP",
-  "title": "某公司 2027 届暑期实习",
-  "summary": "面向 2027 届学生，包含研发和算法岗位。",
-  "sourceType": "RSSHUB",
-  "sourceName": "牛客",
-  "sourceUrl": "https://example.com/source",
-  "officialUrl": "https://example.com/official",
-  "deadline": "2026-09-15T23:59:59+08:00",
-  "tags": ["27届", "研发", "实习"],
-  "rawExcerpt": "保留的原始证据文本",
-  "discoveredAt": "2026-08-26T06:00:00Z"
-}
-```
-
-成功响应：
-
-- 命中其他候选的 `dedupeKey` 或已有相同 URL：HTTP 200，`action` 为 `duplicate`
-- 直接发布：新候选 HTTP 201，`action` 为 `published`
-
-Token 未正确配置时返回 503；Token 缺失或错误时返回 401；非法字段返回 400；
-已完成入库的候选重投或并发状态冲突返回 409；触发每分钟 60 次的单实例速率限制时返回 429。
-候选原始来源与证据会继续保留，管理员只需要维护正式资源，可以编辑或删除。
-
-正式资源的 `origin` 会返回 `SEED`、`MANUAL` 或 `OPENCLAW`。资源卡片和分类
-目录据此显示“初始整理”“人工整理”或“自动采集”，分类总数不再被误解为自动抓取数量。

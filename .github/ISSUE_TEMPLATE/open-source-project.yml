@@ -37,7 +37,7 @@ body:
     id: relation
     attributes:
       label: 你与项目的关系
-      description: 例如发起人、核心贡献者、参与开发者。
+      description: 例如发起人、核心贡献者、参与开发者。若提交者是贡献者，卡片会优先使用当前 GitHub 账号头像。
       placeholder: 发起人 / 核心贡献者 / 参与开发者 / 推荐人
     validations:
       required: true

@@ -1,7 +1,11 @@
 import { NextRequest } from "next/server";
-import { readAdminSession } from "@/lib/auth";
 import { jsonError, jsonOk, zodErrorResponse } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { hasResourceAdminAccess } from "@/lib/resource-admin";
+import {
+  proxyRemoteResourceRequest,
+  shouldUseRemoteResources,
+} from "@/lib/remote-resources";
 import { toResourceDto } from "@/lib/resources";
 import { stringifyTags } from "@/lib/tags";
 import { resourcePatchSchema } from "@/schemas/resource";
@@ -14,13 +18,23 @@ type RouteContext = {
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
-    const isAdmin = await readAdminSession();
+    const isAdmin = await hasResourceAdminAccess(request);
     if (!isAdmin) {
       return jsonError("请先登录管理员账号。", 401);
     }
 
     const { id } = await context.params;
-    const existing = await prisma.resource.findUnique({ where: { id } });
+    if (shouldUseRemoteResources()) {
+      return proxyRemoteResourceRequest(
+        request,
+        `/api/resources/${encodeURIComponent(id)}`,
+      );
+    }
+
+    const existing = await prisma.resource.findUnique({
+      where: { id },
+      include: { repositoryProfile: true },
+    });
     if (!existing) {
       return jsonError("资源不存在或已被删除。", 404);
     }
@@ -56,24 +70,41 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       });
     }
 
-    const updated = await prisma.resource.update({
-      where: { id },
-      data: {
-        ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
-        ...(parsed.data.description !== undefined
-          ? { description: parsed.data.description }
-          : {}),
-        ...(parsed.data.url !== undefined ? { url: parsed.data.url } : {}),
-        ...(parsed.data.category !== undefined ? { category: parsed.data.category } : {}),
-        ...(parsed.data.tags !== undefined
-          ? { tags: stringifyTags(parsed.data.tags) }
-          : {}),
-        ...(parsed.data.isFeatured !== undefined
-          ? { isFeatured: parsed.data.isFeatured }
-          : {}),
-        ...(parsed.data.startsAt !== undefined ? { startsAt } : {}),
-        ...(parsed.data.deadlineAt !== undefined ? { deadlineAt } : {}),
-      },
+    const normalizedExistingUrl = existing.url.replace(/\/+$/, "").toLowerCase();
+    const normalizedNextUrl = parsed.data.url?.replace(/\/+$/, "").toLowerCase();
+    const repositoryChanged =
+      normalizedNextUrl !== undefined && normalizedNextUrl !== normalizedExistingUrl;
+
+    const updated = await prisma.$transaction(async (transaction) => {
+      if (repositoryChanged && existing.repositoryProfile) {
+        await transaction.repositoryProfile.update({
+          where: { id: existing.repositoryProfile.id },
+          data: { resourceId: null },
+        });
+      }
+
+      return transaction.resource.update({
+        where: { id },
+        data: {
+          ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
+          ...(parsed.data.description !== undefined
+            ? { description: parsed.data.description }
+            : {}),
+          ...(parsed.data.url !== undefined ? { url: parsed.data.url } : {}),
+          ...(parsed.data.category !== undefined
+            ? { category: parsed.data.category }
+            : {}),
+          ...(parsed.data.tags !== undefined
+            ? { tags: stringifyTags(parsed.data.tags) }
+            : {}),
+          ...(parsed.data.isFeatured !== undefined
+            ? { isFeatured: parsed.data.isFeatured }
+            : {}),
+          ...(parsed.data.startsAt !== undefined ? { startsAt } : {}),
+          ...(parsed.data.deadlineAt !== undefined ? { deadlineAt } : {}),
+        },
+        include: { repositoryProfile: true },
+      });
     });
 
     return jsonOk(toResourceDto(updated));
@@ -82,14 +113,21 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 }
 
-export async function DELETE(_request: NextRequest, context: RouteContext) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
-    const isAdmin = await readAdminSession();
+    const isAdmin = await hasResourceAdminAccess(request);
     if (!isAdmin) {
       return jsonError("请先登录管理员账号。", 401);
     }
 
     const { id } = await context.params;
+    if (shouldUseRemoteResources()) {
+      return proxyRemoteResourceRequest(
+        request,
+        `/api/resources/${encodeURIComponent(id)}`,
+      );
+    }
+
     const existing = await prisma.resource.findUnique({ where: { id } });
     if (!existing) {
       return jsonError("资源不存在或已被删除。", 404);

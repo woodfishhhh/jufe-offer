@@ -16,9 +16,10 @@
     "db:reset": "prisma migrate reset",
     "hash-password": "tsx scripts/hash-password.ts",
     "generate:technology-sprite": "tsx scripts/generate-technology-sprite.ts",
+    "sync:campus-projects": "tsx scripts/campus-project-avatars.ts",
     "sync:campus-project-avatars": "tsx scripts/campus-project-avatars.ts",
     "friend-link-bot": "tsx scripts/friend-link-bot.ts",
-    "test:friend-links": "tsx --test scripts/friend-link-bot.test.ts scripts/campus-project-avatars.test.ts",
+    "test:friend-links": "tsx --test scripts/friend-link-bot.test.ts scripts/campus-project-avatars.test.ts scripts/remote-resource-admin.test.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

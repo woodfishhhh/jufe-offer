@@ -261,15 +261,6 @@ const excellentResumeResources = [
 
 const submittedProjectResources = [
   {
-    title: "江财OFFER",
-    description:
-      "江财学生自发维护的实习、竞赛与学习资源导航，汇总校内开源项目、面经、优秀简历和常用入口。",
-    url: "https://github.com/woodfishhhh/jufe-offer",
-    category: "校内开源项目",
-    tags: ["开源", "江财", "资源导航"],
-    isFeatured: true,
-  },
-  {
     title: "Typability",
     description:
       "基于 Milkdown 的所见即所得 Markdown 编辑器，适合以可视化方式编辑和管理 Markdown 内容。",
@@ -301,8 +292,44 @@ const submittedProjectResources = [
     description:
       "前端优先、静态部署的 XCPC 题目覆盖追踪工具，支持比赛目录、成员管理、覆盖状态和做题状态同步。",
     url: "https://github.com/mohaoz/xcpc-tracker",
-    category: "竞赛",
+    category: "校内开源项目",
     tags: ["竞赛", "算法", "工具"],
+    isFeatured: true,
+  },
+  {
+    title: "jufe_cas",
+    description:
+      "面向江西财经大学统一身份认证的 Dart 客户端，实现标准 Apereo CAS 登录流程，支持 Cookie 持久化、RSA 加密和 MFA 多因子认证。",
+    url: "https://github.com/SeRazon/jufe_cas",
+    category: "校内开源项目",
+    tags: ["开源", "Dart", "统一认证"],
+    isFeatured: true,
+  },
+  {
+    title: "Eridanus",
+    description:
+      "基于 OneBot 协议的多功能机器人与 Python 开发框架，以 LLM Function Calling 构建智能功能调用，并支持 Live2D 桌宠模式。",
+    url: "https://github.com/AOrbitron/Eridanus",
+    category: "校内开源项目",
+    tags: ["开源", "Python", "LLM"],
+    isFeatured: true,
+  },
+  {
+    title: "Resume Grill",
+    description:
+      "把简历中的项目、技能和成果转化为连续追问式能力测试，帮助发现知识漏洞、复盘掌握度并改进简历表达。",
+    url: "https://github.com/MIU-MA/resume-grill",
+    category: "校内开源项目",
+    tags: ["开源", "AI", "简历"],
+    isFeatured: true,
+  },
+  {
+    title: "JXUFE CSG Website",
+    description:
+      "江西财经大学网络安全协会官方网站建设项目，基于 Nuxt 4，面向协会内容展示、活动传播与开源协作。",
+    url: "https://github.com/JUFEWPST/JXUFE-CSG-Website",
+    category: "校内开源项目",
+    tags: ["开源", "Nuxt", "网络安全"],
     isFeatured: true,
   },
 ];
@@ -312,7 +339,7 @@ const resources = [
     title: "GitHub",
     description: "全球最大的开源代码托管平台，适合阅读项目、提交 Issue 和参与开源。",
     url: "https://github.com",
-    category: "校内开源项目",
+    category: "编程工具",
     tags: ["开源", "协作", "代码托管"],
     isFeatured: true,
   },
@@ -363,7 +390,7 @@ const resources = [
     title: "开源之夏",
     description: "中科院软件所发起的开源贡献活动，学生可申请项目并获得社区导师指导。",
     url: "https://summer-ospp.ac.cn",
-    category: "校内开源项目",
+    category: "实习与校招",
     tags: ["开源", "实习经历", "社区"],
     isFeatured: true,
   },
@@ -379,7 +406,7 @@ const resources = [
     title: "HelloGitHub",
     description: "分享有趣、入门友好的开源项目，适合扩展技术视野。",
     url: "https://hellogithub.com",
-    category: "校内开源项目",
+    category: "编程学习",
     tags: ["开源", "发现", "入门"],
     isFeatured: false,
   },
@@ -436,11 +463,113 @@ const resources = [
   },
 ];
 
+const repositoryProfiles = [
+  {
+    repositoryUrl: "https://github.com/woodfishhhh/jufe-offer",
+    owner: "woodfishhhh",
+    name: "jufe-offer",
+    description: "江财学生的实习、竞赛与学习资源导航。",
+    stars: 5,
+    avatarPath: "/campus-project-avatars/woodfishhhh.webp",
+    avatarLogin: "woodfishhhh",
+    primaryLanguage: "TypeScript",
+  },
+  {
+    repositoryUrl: "https://github.com/SimonShiki/Typability",
+    owner: "SimonShiki",
+    name: "Typability",
+    description: "a WYSIWYG markdown editor based on Milkdown.",
+    stars: 131,
+    avatarPath: "/campus-project-avatars/simonshiki.webp",
+    avatarLogin: "SimonShiki",
+    primaryLanguage: "TypeScript",
+  },
+  {
+    repositoryUrl: "https://github.com/JunieXD/AutoEmailSender",
+    owner: "JunieXD",
+    name: "AutoEmailSender",
+    description: "AutoEmailSender 是一个专为套磁场景设计的智能邮件助手",
+    stars: 135,
+    avatarPath: "/campus-project-avatars/juniexd.webp",
+    avatarLogin: "JunieXD",
+    primaryLanguage: "Python",
+  },
+  {
+    repositoryUrl: "https://github.com/woodfishhhh/Woodfish-Theme",
+    owner: "woodfishhhh",
+    name: "Woodfish-Theme",
+    description: "一个优雅的 VSCode 渐变主题，提供现代化的视觉体验和舒适的编程环境。",
+    stars: 60,
+    avatarPath: "/campus-project-avatars/woodfishhhh.webp",
+    avatarLogin: "woodfishhhh",
+    primaryLanguage: "TypeScript",
+  },
+  {
+    repositoryUrl: "https://github.com/mohaoz/xcpc-tracker",
+    owner: "mohaoz",
+    name: "xcpc-tracker",
+    description: null,
+    stars: 7,
+    avatarPath: "/campus-project-avatars/mohaoz.webp",
+    avatarLogin: "mohaoz",
+    primaryLanguage: "JavaScript",
+  },
+  {
+    repositoryUrl: "https://github.com/SeRazon/jufe_cas",
+    owner: "SeRazon",
+    name: "jufe_cas",
+    description:
+      "江西财经大学（标准Apereo CAS）统一身份认证 Dart 客户端，支持 Cookie 持久化、RSA 加密、MFA 多因子认证。",
+    stars: 1,
+    avatarPath: "/campus-project-avatars/serazon.webp",
+    avatarLogin: "SeRazon",
+    primaryLanguage: "Dart",
+  },
+  {
+    repositoryUrl: "https://github.com/AOrbitron/Eridanus",
+    owner: "AOrbitron",
+    name: "Eridanus",
+    description:
+      "基于 OneBot 协议的多功能bot兼开发框架。以llm function calling为核心构建了更智能的功能调用机制。支持不接入QQ纯Live2d桌宠模式",
+    stars: 200,
+    avatarPath: "/campus-project-avatars/aorbitron.webp",
+    avatarLogin: "AOrbitron",
+    primaryLanguage: "Python",
+  },
+  {
+    repositoryUrl: "https://github.com/MIU-MA/resume-grill",
+    owner: "MIU-MA",
+    name: "resume-grill",
+    description: "vue和react，我还是更喜欢vue（",
+    stars: 8,
+    avatarPath: "/campus-project-avatars/miu-ma.webp",
+    avatarLogin: "MIU-MA",
+    primaryLanguage: "TypeScript",
+  },
+  {
+    repositoryUrl: "https://github.com/JUFEWPST/JXUFE-CSG-Website",
+    owner: "JUFEWPST",
+    name: "JXUFE-CSG-Website",
+    description: "江西财经大学网络安全协会官方网站建设项目",
+    stars: 7,
+    avatarPath: "/campus-project-avatars/jufewpst.webp",
+    avatarLogin: "JUFEWPST",
+    primaryLanguage: "Vue",
+  },
+];
+
+function normalizeRepositoryUrl(value: string) {
+  return value.replace(/\/+$/, "").toLowerCase();
+}
+
 async function main() {
+  await prisma.repositoryProfile.deleteMany();
   await prisma.resource.deleteMany();
 
+  const resourceIdsByUrl = new Map<string, string>();
+
   for (const resource of resources) {
-    await prisma.resource.create({
+    const created = await prisma.resource.create({
       data: {
         title: resource.title,
         description: resource.description,
@@ -449,6 +578,18 @@ async function main() {
         tags: JSON.stringify(resource.tags),
         isFeatured: resource.isFeatured,
         origin: ResourceOrigin.SEED,
+      },
+    });
+    resourceIdsByUrl.set(normalizeRepositoryUrl(created.url), created.id);
+  }
+
+  const syncedAt = new Date();
+  for (const profile of repositoryProfiles) {
+    await prisma.repositoryProfile.create({
+      data: {
+        ...profile,
+        resourceId: resourceIdsByUrl.get(normalizeRepositoryUrl(profile.repositoryUrl)),
+        syncedAt,
       },
     });
   }

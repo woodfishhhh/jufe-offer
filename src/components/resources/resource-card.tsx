@@ -3,6 +3,7 @@
 import { memo } from "react";
 import { ArrowUpRight, CalendarClock, Clock3, Pencil, Star, Trash2 } from "lucide-react";
 import { ExternalLink } from "@/components/external-link";
+import { RepositoryShowcaseCard } from "@/components/repository-showcase-card";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -17,6 +18,10 @@ import {
   isPastDeadline,
   type ResourceDto,
 } from "@/lib/resources";
+import {
+  CAMPUS_PROJECT_CATEGORY,
+  repositoryCardFromResource,
+} from "@/lib/repository-card";
 import { cn } from "@/lib/utils";
 
 export type ResourceView = "feed" | "masonry";
@@ -231,7 +236,41 @@ function MasonryCard(props: ResourceCardProps) {
   return <article className="w-full">{card}</article>;
 }
 
+function CampusRepositoryCard(props: ResourceCardProps) {
+  const { resource, authenticated, onEdit, onDelete, view } = props;
+  const repository = repositoryCardFromResource(resource);
+
+  return (
+    <article
+      className={cn(
+        "group/repository relative w-full",
+        view === "feed" && "border-border border-b p-3 last:border-b-0 sm:p-4",
+      )}
+    >
+      <ExternalLink
+        href={repository.href}
+        aria-label={`打开 ${repository.owner}/${repository.name} GitHub 仓库`}
+        className="block rounded-[1.5rem] outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+      >
+        <RepositoryShowcaseCard
+          repository={repository}
+          variant={view === "feed" ? "resource-feed" : "resource-grid"}
+        />
+      </ExternalLink>
+
+      {authenticated ? (
+        <div className="absolute right-5 bottom-5 z-10 rounded-full border border-white/10 bg-black/72 p-1 text-white backdrop-blur-md sm:right-6 sm:bottom-6">
+          <AdminActions resource={resource} onEdit={onEdit} onDelete={onDelete} />
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
 function ResourceCardComponent(props: ResourceCardProps) {
+  if (props.resource.category === CAMPUS_PROJECT_CATEGORY) {
+    return <CampusRepositoryCard {...props} />;
+  }
   if (props.view === "feed") return <FeedCard {...props} />;
   return <MasonryCard {...props} />;
 }

@@ -51,19 +51,37 @@ enum CandidateStatus {
 }
 
 model Resource {
-  id          String      @id @default(cuid())
-  title       String
-  description String
-  url         String
-  category    String
-  tags        String
-  isFeatured  Boolean     @default(false)
-  origin      ResourceOrigin @default(MANUAL)
-  startsAt    DateTime?
-  deadlineAt  DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  candidates  Candidate[]
+  id                String             @id @default(cuid())
+  title             String
+  description       String
+  url               String
+  category          String
+  tags              String
+  isFeatured        Boolean            @default(false)
+  origin            ResourceOrigin     @default(MANUAL)
+  startsAt          DateTime?
+  deadlineAt        DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  candidates        Candidate[]
+  repositoryProfile RepositoryProfile?
+}
+
+model RepositoryProfile {
+  id              String    @id @default(cuid())
+  repositoryUrl   String    @unique
+  owner           String
+  name            String
+  description     String?
+  stars           Int       @default(0)
+  avatarPath      String?
+  avatarLogin     String?
+  primaryLanguage String?
+  resourceId      String?   @unique
+  resource        Resource? @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+  syncedAt        DateTime
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 model Candidate {

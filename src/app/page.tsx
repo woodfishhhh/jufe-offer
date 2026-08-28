@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, Github, Heart, Search } from "lucide-react";
+import { ArrowUpRight, Github, Heart, Search, Star } from "lucide-react";
 import { FlameWrap } from "@/components/canvasui/FlameWrap";
 import { FlowingWaves } from "@/components/flowing-waves";
 import { DeferredCommunityPanel } from "@/components/home/deferred-community-panel";
@@ -14,6 +14,8 @@ import { ScrollReveal } from "@/components/scroll-reveal";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { site } from "@/data/site";
+import { readHomeRepositoryData } from "@/lib/home-repositories";
+import { formatRepositoryStars } from "@/lib/repository-card";
 import { cn } from "@/lib/utils";
 
 export const metadata = {
@@ -21,7 +23,9 @@ export const metadata = {
   description: site.tagline,
 };
 
-export function HomePageContent({ initialIndex = 0 }: { initialIndex?: number }) {
+export async function HomePageContent({ initialIndex = 0 }: { initialIndex?: number }) {
+  const { campusProjects, siteRepository } = await readHomeRepositoryData();
+
   return (
     <HomeDeck className="bg-background text-foreground" initialIndex={initialIndex}>
       <section className="border-border relative overflow-hidden border-b lg:h-full lg:min-h-0">
@@ -89,7 +93,7 @@ export function HomePageContent({ initialIndex = 0 }: { initialIndex?: number })
 
       <CareerRoadmapPanel />
 
-      <CampusProjectsPanel />
+      <CampusProjectsPanel projects={campusProjects} />
 
       <section className="border-border relative overflow-hidden border-b lg:h-full lg:min-h-0">
         <div className="mx-auto flex h-full max-w-[1280px] flex-col justify-center px-5 py-8 sm:px-8 sm:py-12 lg:py-14">
@@ -224,6 +228,14 @@ export function HomePageContent({ initialIndex = 0 }: { initialIndex?: number })
                   woodfishhhh / jufe-offer
                 </span>
                 <span className="mt-6 flex flex-wrap gap-2 border-t border-white/10 pt-4 font-mono text-[9px] tracking-[0.12em] text-white/38 uppercase">
+                  <span className="inline-flex items-center gap-1 text-white/58">
+                    <Star
+                      className="size-3 fill-[#f6c453] text-[#f6c453]"
+                      aria-hidden="true"
+                    />
+                    {formatRepositoryStars(siteRepository?.stars ?? null)} Stars
+                  </span>
+                  <span aria-hidden="true">/</span>
                   <span>Open source</span>
                   <span aria-hidden="true">/</span>
                   <span>Next.js</span>

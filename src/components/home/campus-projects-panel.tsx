@@ -2,10 +2,10 @@ import Link from "next/link";
 import { ArrowUpRight, Github, GitPullRequest, Users } from "lucide-react";
 import { DriftWall } from "@/components/drift-wall";
 import { buttonVariants } from "@/components/ui/button";
-import { campusProjects } from "@/data/campus-projects";
+import type { RepositoryCardData } from "@/lib/repository-card";
 import { cn } from "@/lib/utils";
 
-export function CampusProjectsPanel() {
+export function CampusProjectsPanel({ projects }: { projects: RepositoryCardData[] }) {
   return (
     <section className="campus-projects-stage" aria-labelledby="campus-projects-title">
       <div className="campus-projects-stage__glow" aria-hidden="true" />
@@ -47,9 +47,17 @@ export function CampusProjectsPanel() {
         </div>
 
         <div className="campus-projects-stage__wall">
-          <DriftWall items={campusProjects.map((project) => ({ ...project }))} />
+          {projects.length ? (
+            <DriftWall items={projects} />
+          ) : (
+            <div className="campus-projects-stage__empty" role="status">
+              <Github aria-hidden="true" />
+              <span>暂无校内开源项目</span>
+              <small>项目通过审核后会出现在这里</small>
+            </div>
+          )}
           <div className="campus-projects-stage__wall-label" aria-hidden="true">
-            <span>{campusProjects.length.toString().padStart(2, "0")} repositories</span>
+            <span>{projects.length.toString().padStart(2, "0")} repositories</span>
             <span>DRAG / HOVER / OPEN</span>
           </div>
         </div>

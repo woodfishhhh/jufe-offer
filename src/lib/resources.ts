@@ -1,5 +1,17 @@
-import type { Resource, ResourceOrigin } from "@prisma/client";
+import type { RepositoryProfile, Resource, ResourceOrigin } from "@prisma/client";
 import { parseTags } from "@/lib/tags";
+
+export type RepositoryProfileDto = {
+  repositoryUrl: string;
+  owner: string;
+  name: string;
+  description: string | null;
+  stars: number;
+  avatarPath: string | null;
+  avatarLogin: string | null;
+  primaryLanguage: string | null;
+  syncedAt: string;
+};
 
 export type ResourceDto = {
   id: string;
@@ -14,9 +26,32 @@ export type ResourceDto = {
   deadlineAt: string | null;
   createdAt: string;
   updatedAt: string;
+  repository: RepositoryProfileDto | null;
 };
 
-export function toResourceDto(resource: Resource): ResourceDto {
+type ResourceWithRepositoryProfile = Resource & {
+  repositoryProfile?: RepositoryProfile | null;
+};
+
+function toRepositoryProfileDto(
+  profile: RepositoryProfile | null | undefined,
+): RepositoryProfileDto | null {
+  if (!profile) return null;
+
+  return {
+    repositoryUrl: profile.repositoryUrl,
+    owner: profile.owner,
+    name: profile.name,
+    description: profile.description,
+    stars: profile.stars,
+    avatarPath: profile.avatarPath,
+    avatarLogin: profile.avatarLogin,
+    primaryLanguage: profile.primaryLanguage,
+    syncedAt: profile.syncedAt.toISOString(),
+  };
+}
+
+export function toResourceDto(resource: ResourceWithRepositoryProfile): ResourceDto {
   return {
     id: resource.id,
     title: resource.title,
@@ -30,6 +65,7 @@ export function toResourceDto(resource: Resource): ResourceDto {
     deadlineAt: resource.deadlineAt?.toISOString() ?? null,
     createdAt: resource.createdAt.toISOString(),
     updatedAt: resource.updatedAt.toISOString(),
+    repository: toRepositoryProfileDto(resource.repositoryProfile),
   };
 }
 
