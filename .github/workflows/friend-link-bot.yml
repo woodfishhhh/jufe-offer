@@ -4,6 +4,7 @@ on:
   issues:
     types:
       - opened
+      - labeled
   schedule:
     # GitHub Actions uses UTC; 16:00 UTC is 00:00 in Asia/Shanghai.
     - cron: "0 16 * * *"
@@ -22,6 +23,8 @@ jobs:
   friend-link-bot:
     if: >-
       github.event_name != 'issues' ||
+      contains(github.event.issue.labels.*.name, 'submission:friend-link') ||
+      contains(github.event.issue.labels.*.name, 'submission:campus-project') ||
       startsWith(github.event.issue.title, '[友链申请]') ||
       startsWith(github.event.issue.title, '[Friend Link]') ||
       startsWith(github.event.issue.title, '[开源项目提交]') ||
@@ -59,7 +62,7 @@ jobs:
           git config user.name "jufe-offer-community-bot"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Reply to new community submission issue
+      - name: Acknowledge community submission issue
         if: github.event_name == 'issues'
         run: pnpm friend-link-bot opened
 

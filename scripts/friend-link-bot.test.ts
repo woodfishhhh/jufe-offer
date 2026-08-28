@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 import {
   buildInitialFriendLinkComment,
   buildInitialOpenSourceProjectComment,
   buildOpenSourceProjectMigration,
+  CAMPUS_PROJECT_SUBMISSION_LABEL,
+  FRIEND_LINK_SUBMISSION_LABEL,
   JUFE_OFFER_FRIEND_LINK,
   mergeFriendLinkIntoSource,
   normalizePublicHttpUrl,
@@ -12,8 +15,77 @@ import {
   preferredProjectAvatarLogin,
   parseFriendLinkIssueBody,
   shouldReviewIssue,
+  submissionKindForIssue,
   verifyReciprocalLink,
 } from "./friend-link-bot";
+
+test("routes submissions by form label while keeping legacy title compatibility", () => {
+  const baseIssue = {
+    created_at: "2026-08-28T05:24:51.000Z",
+    number: 2,
+  };
+
+  assert.equal(
+    submissionKindForIssue({
+      ...baseIssue,
+      title: "TheNook",
+      labels: [{ name: CAMPUS_PROJECT_SUBMISSION_LABEL }],
+    }),
+    "campus-project",
+  );
+  assert.equal(
+    submissionKindForIssue({
+      ...baseIssue,
+      title: "[开源项目提交] 仍以标签为准",
+      labels: [FRIEND_LINK_SUBMISSION_LABEL],
+    }),
+    "friend-link",
+  );
+  assert.equal(
+    submissionKindForIssue({
+      ...baseIssue,
+      title: "[友链申请] 历史提交",
+    }),
+    "friend-link",
+  );
+  assert.equal(
+    submissionKindForIssue({
+      ...baseIssue,
+      title: "[开源项目提交] 历史提交",
+    }),
+    "campus-project",
+  );
+  assert.equal(
+    submissionKindForIssue({
+      ...baseIssue,
+      title: "冲突标签",
+      labels: [FRIEND_LINK_SUBMISSION_LABEL, CAMPUS_PROJECT_SUBMISSION_LABEL],
+    }),
+    null,
+  );
+  assert.equal(
+    submissionKindForIssue({
+      ...baseIssue,
+      title: "普通 Issue",
+      labels: [{ name: "enhancement" }],
+    }),
+    null,
+  );
+});
+
+test("submission forms attach source labels and labeled events wake the bot", async () => {
+  const [friendLinkForm, campusProjectForm, workflow] = await Promise.all([
+    readFile(".github/ISSUE_TEMPLATE/friend-link.yml", "utf8"),
+    readFile(".github/ISSUE_TEMPLATE/open-source-project.yml", "utf8"),
+    readFile(".github/workflows/friend-link-bot.yml", "utf8"),
+  ]);
+
+  assert.match(friendLinkForm, /submission:friend-link/);
+  assert.match(campusProjectForm, /submission:campus-project/);
+  assert.match(workflow, /- labeled/);
+  assert.match(workflow, /submission:friend-link/);
+  assert.match(workflow, /submission:campus-project/);
+});
 
 test("parses the prefilled markdown body used by the application form", () => {
   const parsed = parseFriendLinkIssueBody(

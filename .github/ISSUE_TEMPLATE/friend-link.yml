@@ -1,6 +1,8 @@
 name: 提交友链
 description: 申请将你的站点加入江财OFFER友链页
 title: "[友链申请] "
+labels:
+  - "submission:friend-link"
 body:
   - type: markdown
     attributes:

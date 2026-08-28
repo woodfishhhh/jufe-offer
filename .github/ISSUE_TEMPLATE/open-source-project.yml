@@ -1,6 +1,8 @@
 name: 提交校内开源项目
 description: 推荐由江财同学创立或参与的校内开源项目
 title: "[开源项目提交] "
+labels:
+  - "submission:campus-project"
 body:
   - type: markdown
     attributes:

@@ -44,6 +44,7 @@ export interface OwnFriendLink {
 export interface GitHubIssue {
   body?: string | null;
   created_at: string;
+  labels?: Array<string | { name?: string | null }> | null;
   number: number;
   pull_request?: unknown;
   state?: string;
@@ -76,6 +77,8 @@ const OPEN_SOURCE_PROJECT_TITLE_PREFIXES = [
   "[开源项目提交]",
   "[Open Source Project]",
 ] as const;
+export const FRIEND_LINK_SUBMISSION_LABEL = "submission:friend-link";
+export const CAMPUS_PROJECT_SUBMISSION_LABEL = "submission:campus-project";
 const INITIAL_COMMENT_MARKER = "<!-- jufe-offer-friend-bot:initial -->";
 const SUCCESS_COMMENT_MARKER = "<!-- jufe-offer-friend-bot:accepted -->";
 const REJECT_COMMENT_MARKER = "<!-- jufe-offer-friend-bot:rejected -->";
@@ -845,13 +848,13 @@ class GitHubClient {
     }
 
     return issues.filter(
-      (issue) => !issue.pull_request && isSupportedSubmissionIssueTitle(issue.title),
+      (issue) => !issue.pull_request && submissionKindForIssue(issue) !== null,
     );
   }
 
   async listOpenFriendIssues() {
     const issues = await this.listOpenSubmissionIssues();
-    return issues.filter((issue) => isFriendLinkIssueTitle(issue.title));
+    return issues.filter((issue) => submissionKindForIssue(issue) === "friend-link");
   }
 
   async listComments(issueNumber: number) {
@@ -923,16 +926,45 @@ function isSupportedSubmissionIssueTitle(title: string) {
   return isFriendLinkIssueTitle(title) || isOpenSourceProjectIssueTitle(title);
 }
 
+function issueLabelNames(issue: GitHubIssue) {
+  return new Set(
+    (issue.labels ?? [])
+      .map((label) => (typeof label === "string" ? label : label.name))
+      .filter((label): label is string => Boolean(label)),
+  );
+}
+
+export type SubmissionKind = "friend-link" | "campus-project";
+
+export function submissionKindForIssue(issue: GitHubIssue): SubmissionKind | null {
+  const labels = issueLabelNames(issue);
+  const isFriendLink = labels.has(FRIEND_LINK_SUBMISSION_LABEL);
+  const isCampusProject = labels.has(CAMPUS_PROJECT_SUBMISSION_LABEL);
+
+  if (isFriendLink !== isCampusProject) {
+    return isFriendLink ? "friend-link" : "campus-project";
+  }
+  if (isFriendLink && isCampusProject) {
+    return null;
+  }
+
+  if (!isSupportedSubmissionIssueTitle(issue.title)) {
+    return null;
+  }
+  return isOpenSourceProjectIssueTitle(issue.title) ? "campus-project" : "friend-link";
+}
+
 async function runOpenedMode() {
   const issue = await readEventIssue();
-  if (!issue || !isSupportedSubmissionIssueTitle(issue.title)) {
-    console.log("No supported submission issue in event; skipping.");
+  const submissionKind = issue ? submissionKindForIssue(issue) : null;
+  if (!issue || !submissionKind) {
+    console.log("No supported submission label or legacy title in event; skipping.");
     return;
   }
 
   const github = createGitHubClient();
   const comments = await github.listComments(issue.number);
-  if (isOpenSourceProjectIssueTitle(issue.title)) {
+  if (submissionKind === "campus-project") {
     if (
       comments.some((comment) => comment.body?.includes(PROJECT_INITIAL_COMMENT_MARKER))
     ) {
@@ -969,7 +1001,7 @@ async function runReviewMode() {
       console.log(`Skipping #${issue.number}: still waiting for one-hour window.`);
       continue;
     }
-    if (isOpenSourceProjectIssueTitle(issue.title)) {
+    if (submissionKindForIssue(issue) === "campus-project") {
       await reviewOpenSourceProjectIssue(issue, github);
     } else {
       await reviewFriendLinkIssue(issue, github);
