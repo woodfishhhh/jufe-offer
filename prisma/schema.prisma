@@ -112,3 +112,9 @@ model Candidate {
   @@index([category, status])
   @@index([resourceId])
 }
+
+model SiteMetric {
+  key       String   @id
+  value     Int      @default(0)
+  updatedAt DateTime @updatedAt
+}

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFile } from "node:child_process";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { isIP } from "node:net";
 import path from "node:path";
 import process from "node:process";
@@ -86,7 +86,7 @@ const RETRY_COMMENT_MARKER = "<!-- jufe-offer-friend-bot:retry -->";
 const PROJECT_INITIAL_COMMENT_MARKER = "<!-- jufe-offer-open-source-bot:initial -->";
 const PROJECT_SUCCESS_COMMENT_MARKER = "<!-- jufe-offer-open-source-bot:accepted -->";
 const PROJECT_REJECT_COMMENT_MARKER = "<!-- jufe-offer-open-source-bot:rejected -->";
-const DEFAULT_WAIT_MS = 60 * 60 * 1000;
+const DEFAULT_WAIT_MS = 30 * 60 * 1000;
 const USER_AGENT = "JufeOfferFriendLinkBot/1.0";
 const FRIENDS_SOURCE_PATH = path.join("src", "data", "friends.ts");
 const RESOURCE_MIGRATIONS_PATH = path.join("prisma", "migrations");
@@ -336,7 +336,7 @@ function hasOpenSourceProjectConfirmation(body: string) {
 export function buildInitialFriendLinkComment(ownLink: OwnFriendLink) {
   return [
     INITIAL_COMMENT_MARKER,
-    "收到友链申请啦！机器人每天北京时间 00:00 检验友链；新申请至少等待 1 小时，确认没有反链会自动关闭，暂时无法访问则会等下一轮重试。",
+    "收到友链申请啦！机器人会在回帖确认约 30 分钟后检验友链；确认没有反链会自动关闭，暂时无法访问则会在后续巡检中重试。",
     "",
     "请先在您的站点友链页中加入江财OFFER：",
     "",
@@ -354,7 +354,7 @@ export function buildInitialFriendLinkComment(ownLink: OwnFriendLink) {
 export function buildInitialOpenSourceProjectComment() {
   return [
     PROJECT_INITIAL_COMMENT_MARKER,
-    "收到校内开源项目提交啦！机器人每天北京时间 00:00 检查待处理申请；新申请至少等待 1 小时。",
+    "收到校内开源项目提交啦！机器人会在回帖确认约 30 分钟后检查并处理。",
     "",
     "本页面只收录由本校同学创立或参与的开源项目。请确保项目地址可以公开访问，并在 Issue 中说明你与项目的关系，保留并勾选提交确认。",
     "",
@@ -466,7 +466,9 @@ export function preferredProjectAvatarLogin(
   const submitterLogin = issue.user?.login?.trim();
   if (!submitterLogin) return undefined;
 
-  return /(贡献|参与|开发|contributor|developer)/i.test(project.relation)
+  return /(贡献|参与|开发|协作|contributor|developer|collaborator)/i.test(
+    project.relation,
+  )
     ? submitterLogin
     : undefined;
 }
@@ -852,6 +854,12 @@ class GitHubClient {
     );
   }
 
+  async getIssue(issueNumber: number) {
+    return this.request<GitHubIssue>(
+      `/repos/${this.owner}/${this.repo}/issues/${issueNumber}`,
+    );
+  }
+
   async listOpenFriendIssues() {
     const issues = await this.listOpenSubmissionIssues();
     return issues.filter((issue) => submissionKindForIssue(issue) === "friend-link");
@@ -959,7 +967,7 @@ async function runOpenedMode() {
   const submissionKind = issue ? submissionKindForIssue(issue) : null;
   if (!issue || !submissionKind) {
     console.log("No supported submission label or legacy title in event; skipping.");
-    return;
+    return false;
   }
 
   const github = createGitHubClient();
@@ -971,17 +979,17 @@ async function runOpenedMode() {
       console.log(
         `Initial open-source project comment already exists for #${issue.number}.`,
       );
-      return;
+      return false;
     }
 
     await github.addComment(issue.number, buildInitialOpenSourceProjectComment());
     console.log(`Posted initial open-source project comment to #${issue.number}.`);
-    return;
+    return true;
   }
 
   if (comments.some((comment) => comment.body?.includes(INITIAL_COMMENT_MARKER))) {
     console.log(`Initial friend-link comment already exists for #${issue.number}.`);
-    return;
+    return false;
   }
 
   await github.addComment(
@@ -989,16 +997,27 @@ async function runOpenedMode() {
     buildInitialFriendLinkComment(JUFE_OFFER_FRIEND_LINK),
   );
   console.log(`Posted initial friend-link comment to #${issue.number}.`);
+  return true;
 }
 
-async function runReviewMode() {
+async function runReviewMode(issueNumber?: number) {
   const github = createGitHubClient();
-  const issues = await github.listOpenSubmissionIssues();
+  const issues = issueNumber
+    ? [await github.getIssue(issueNumber)]
+    : await github.listOpenSubmissionIssues();
   const now = new Date();
 
   for (const issue of issues) {
+    if (
+      issue.pull_request ||
+      issue.state === "closed" ||
+      submissionKindForIssue(issue) === null
+    ) {
+      console.log(`Skipping #${issue.number}: not an open supported submission.`);
+      continue;
+    }
     if (!shouldReviewIssue(issue.created_at, now)) {
-      console.log(`Skipping #${issue.number}: still waiting for one-hour window.`);
+      console.log(`Skipping #${issue.number}: still waiting for 30-minute window.`);
       continue;
     }
     if (submissionKindForIssue(issue) === "campus-project") {
@@ -1359,17 +1378,33 @@ function createGitHubClient() {
 }
 
 export async function runFriendLinkBotCli(argv: string[]) {
-  const [mode] = argv;
+  const [mode, issueNumberArgument] = argv;
   if (mode === "opened") {
-    await runOpenedMode();
+    const shouldReview = await runOpenedMode();
+    const outputPath = process.env.GITHUB_OUTPUT;
+    if (outputPath) {
+      await appendFile(outputPath, `should_review=${shouldReview}\n`, "utf8");
+    }
     return 0;
   }
   if (mode === "review") {
-    await runReviewMode();
+    let issueNumber: number | undefined;
+    if (issueNumberArgument !== undefined) {
+      issueNumber = Number(issueNumberArgument);
+      if (
+        !Number.isSafeInteger(issueNumber) ||
+        issueNumber < 1 ||
+        String(issueNumber) !== issueNumberArgument
+      ) {
+        console.error("review issue number must be a positive integer");
+        return 2;
+      }
+    }
+    await runReviewMode(issueNumber);
     return 0;
   }
 
-  console.error("usage: friend-link-bot <opened|review>");
+  console.error("usage: friend-link-bot <opened|review [issue-number]>");
   return 2;
 }
 

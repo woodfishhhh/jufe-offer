@@ -7,7 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        感谢申请加入江财OFFER友链。请先在你的友链页加入江财OFFER，机器人会在每天北京时间 00:00 检查反向链接并自动处理。
+        感谢申请加入江财OFFER友链。请先在你的友链页加入江财OFFER，机器人回帖确认后会等待 30 分钟，再检查反向链接并自动处理。
 
   - type: input
     id: name

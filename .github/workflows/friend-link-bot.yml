@@ -6,13 +6,9 @@ on:
       - opened
       - labeled
   schedule:
-    # GitHub Actions uses UTC; 16:00 UTC is 00:00 in Asia/Shanghai.
-    - cron: "0 16 * * *"
+    # Hourly reconciliation is a fallback for interrupted per-issue delayed runs.
+    - cron: "17 * * * *"
   workflow_dispatch:
-
-concurrency:
-  group: jufe-offer-community-submission-bot
-  cancel-in-progress: false
 
 permissions:
   actions: write
@@ -23,14 +19,29 @@ jobs:
   friend-link-bot:
     if: >-
       github.event_name != 'issues' ||
-      contains(github.event.issue.labels.*.name, 'submission:friend-link') ||
-      contains(github.event.issue.labels.*.name, 'submission:campus-project') ||
-      startsWith(github.event.issue.title, '[友链申请]') ||
-      startsWith(github.event.issue.title, '[Friend Link]') ||
-      startsWith(github.event.issue.title, '[开源项目提交]') ||
-      startsWith(github.event.issue.title, '[Open Source Project]')
+      (
+        github.event.action == 'opened' &&
+        (
+          contains(github.event.issue.labels.*.name, 'submission:friend-link') ||
+          contains(github.event.issue.labels.*.name, 'submission:campus-project') ||
+          startsWith(github.event.issue.title, '[友链申请]') ||
+          startsWith(github.event.issue.title, '[Friend Link]') ||
+          startsWith(github.event.issue.title, '[开源项目提交]') ||
+          startsWith(github.event.issue.title, '[Open Source Project]')
+        )
+      ) ||
+      (
+        github.event.action == 'labeled' &&
+        (
+          github.event.label.name == 'submission:friend-link' ||
+          github.event.label.name == 'submission:campus-project'
+        )
+      )
+    concurrency:
+      group: jufe-offer-community-submission-bot-${{ github.event.issue.number || 'review' }}
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 50
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -53,25 +64,48 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Install Chromium for rendered link checks
-        if: github.event_name != 'issues'
-        run: pnpm exec playwright install --with-deps chromium
-
       - name: Configure git
         run: |
           git config user.name "jufe-offer-community-bot"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Acknowledge community submission issue
+        id: acknowledge
         if: github.event_name == 'issues'
         run: pnpm friend-link-bot opened
+
+      - name: Wait 30 minutes before reviewing this submission
+        if: github.event_name == 'issues' && steps.acknowledge.outputs.should_review == 'true'
+        run: sleep 1800
+
+      - name: Install Chromium for rendered link checks
+        if: >-
+          github.event_name != 'issues' ||
+          (
+            steps.acknowledge.outputs.should_review == 'true' &&
+            (
+              contains(github.event.issue.labels.*.name, 'submission:friend-link') ||
+              startsWith(github.event.issue.title, '[友链申请]') ||
+              startsWith(github.event.issue.title, '[Friend Link]')
+            )
+          )
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Review this community submission
+        if: github.event_name == 'issues' && steps.acknowledge.outputs.should_review == 'true'
+        run: pnpm friend-link-bot review "${{ github.event.issue.number }}"
 
       - name: Review pending community submission issues
         if: github.event_name != 'issues'
         run: pnpm friend-link-bot review
 
       - name: Trigger CI for accepted submissions
-        if: always() && github.event_name != 'issues'
+        if: >-
+          always() &&
+          (
+            github.event_name != 'issues' ||
+            steps.acknowledge.outputs.should_review == 'true'
+          )
         env:
           GH_TOKEN: ${{ github.token }}
           INITIAL_SHA: ${{ github.sha }}

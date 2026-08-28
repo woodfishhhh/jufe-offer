@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { VariableProximity } from "@/components/variable-proximity";
+import { VisitorCountBadge } from "@/components/home/visitor-count-badge";
 
 export function HeroProximityTitle() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -28,6 +29,7 @@ export function HeroProximityTitle() {
           />
         </span>
       </h1>
+      <VisitorCountBadge />
     </div>
   );
 }

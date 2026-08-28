@@ -73,7 +73,7 @@ test("routes submissions by form label while keeping legacy title compatibility"
   );
 });
 
-test("submission forms attach source labels and labeled events wake the bot", async () => {
+test("submission forms attach source labels and issue events use per-issue delayed review", async () => {
   const [friendLinkForm, campusProjectForm, workflow] = await Promise.all([
     readFile(".github/ISSUE_TEMPLATE/friend-link.yml", "utf8"),
     readFile(".github/ISSUE_TEMPLATE/open-source-project.yml", "utf8"),
@@ -85,6 +85,14 @@ test("submission forms attach source labels and labeled events wake the bot", as
   assert.match(workflow, /- labeled/);
   assert.match(workflow, /submission:friend-link/);
   assert.match(workflow, /submission:campus-project/);
+  assert.match(workflow, /sleep 1800/);
+  assert.match(
+    workflow,
+    /friend-link-bot review "\$\{\{ github\.event\.issue\.number \}\}"/,
+  );
+  assert.match(workflow, /jufe-offer-community-submission-bot-\$\{\{/);
+  assert.match(workflow, /cron: "17 \* \* \* \*"/);
+  assert.doesNotMatch(friendLinkForm, /00:00|1 小时/);
 });
 
 test("parses the prefilled markdown body used by the application form", () => {
@@ -248,6 +256,10 @@ test("uses the submitting contributor avatar but keeps owner avatars for recomme
 
   assert.equal(preferredProjectAvatarLogin(issue, project), "student-contributor");
   assert.equal(
+    preferredProjectAvatarLogin(issue, { ...project, relation: "协作者" }),
+    "student-contributor",
+  );
+  assert.equal(
     preferredProjectAvatarLogin(issue, { ...project, relation: "推荐人" }),
     undefined,
   );
@@ -256,8 +268,8 @@ test("uses the submitting contributor avatar but keeps owner avatars for recomme
 test("builds the open-source project review reminder", () => {
   const comment = buildInitialOpenSourceProjectComment();
 
-  assert.match(comment, /北京时间 00:00/);
-  assert.match(comment, /至少等待 1 小时/);
+  assert.match(comment, /约 30 分钟后/);
+  assert.doesNotMatch(comment, /00:00|1 小时/);
   assert.match(comment, /本校同学创立或参与/);
   assert.match(comment, /加入资源页/);
 });
@@ -265,8 +277,8 @@ test("builds the open-source project review reminder", () => {
 test("builds the reciprocal-link reminder comment", () => {
   const comment = buildInitialFriendLinkComment(JUFE_OFFER_FRIEND_LINK);
 
-  assert.match(comment, /北京时间 00:00/);
-  assert.match(comment, /至少等待 1 小时/);
+  assert.match(comment, /约 30 分钟后/);
+  assert.doesNotMatch(comment, /00:00|1 小时/);
   assert.match(comment, /自动关闭/);
   assert.match(comment, /江财OFFER/);
   assert.match(
@@ -275,11 +287,11 @@ test("builds the reciprocal-link reminder comment", () => {
   );
 });
 
-test("waits one hour after issue creation", () => {
+test("waits thirty minutes after issue creation", () => {
   const createdAt = "2026-08-27T08:00:00.000Z";
 
-  assert.equal(shouldReviewIssue(createdAt, new Date("2026-08-27T08:59:59.000Z")), false);
-  assert.equal(shouldReviewIssue(createdAt, new Date("2026-08-27T09:00:00.000Z")), true);
+  assert.equal(shouldReviewIssue(createdAt, new Date("2026-08-27T08:29:59.000Z")), false);
+  assert.equal(shouldReviewIssue(createdAt, new Date("2026-08-27T08:30:00.000Z")), true);
 });
 
 test("rejects local and private URLs before fetching", () => {
