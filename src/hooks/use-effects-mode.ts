@@ -11,8 +11,8 @@ function subscribe(callback: () => void) {
   return subscribeToPerformanceHints(callback);
 }
 
-function getServerSnapshot(): EffectsMode {
-  return "lite";
+function getServerSnapshot(): EffectsMode | "pending" {
+  return "pending";
 }
 
 export function useEffectsMode() {

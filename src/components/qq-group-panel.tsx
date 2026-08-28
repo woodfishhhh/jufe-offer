@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState, type PointerEvent } from "react";
-import { ArrowUpRight, Copy, QrCode } from "lucide-react";
+import { ArrowUpRight, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { DecryptReveal } from "@/components/canvasui/DecryptReveal";
 import { ExternalLink } from "@/components/external-link";
 import { FlowingWaves } from "@/components/flowing-waves";
-import { ResilientImage } from "@/components/resilient-image";
+import {
+  CommunityFloatingQrCard,
+  CommunityPassShell,
+} from "@/components/home/community-pass-shell";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { site } from "@/data/site";
 import { scheduleIdle } from "@/lib/client-performance";
 import { cn } from "@/lib/utils";
@@ -73,79 +75,6 @@ export function QqGroupPanel() {
       toast.error("复制失败，请手动复制");
     }
   }
-
-  const passContent = (
-    <>
-      <div className="community-pass__grid" aria-hidden="true" />
-      <span className="community-pass__number" aria-hidden="true">
-        02
-      </span>
-      <div className="community-pass__content">
-        <div className="community-pass__brand">
-          <span className="community-pass__logo">
-            <ResilientImage
-              src={site.logoSrc}
-              alt=""
-              width={60}
-              height={60}
-              sizes="30px"
-            />
-          </span>
-          <span>JUFE OFFER</span>
-          <span className="community-pass__brand-rule" />
-          <span>ACCESS / 729</span>
-        </div>
-        <div className="community-pass__body">
-          <div className="community-pass__copy">
-            <p>{site.qqGroupPurpose}</p>
-            <h2>
-              <span>{site.communityCardTitle}</span>
-            </h2>
-          </div>
-
-          <div className="community-pass__qr">
-            <div className="community-pass__qr-header">
-              <QrCode />
-              <span>QQ GROUP</span>
-              <span>SCAN / 02</span>
-            </div>
-            <div className="community-pass__qr-image">
-              <ResilientImage
-                src={site.qqGroupQrSrc}
-                alt={`${site.qqGroupName}群二维码`}
-                width={400}
-                height={400}
-                loading="eager"
-                sizes="(max-width: 480px) 176px, (max-width: 1023px) 232px, 248px"
-                className="h-auto w-full"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-
-  const floatingQrCard = (
-    <Card className="community-qr-card">
-      <div className="community-qr-card__header">
-        <QrCode />
-        <span>QQ GROUP</span>
-        <span>SCAN / 02</span>
-      </div>
-      <div className="community-qr-card__image">
-        <ResilientImage
-          src={site.qqGroupQrSrc}
-          alt={`${site.qqGroupName}群二维码`}
-          width={400}
-          height={400}
-          loading="eager"
-          sizes="248px"
-          className="h-auto w-full"
-        />
-      </div>
-    </Card>
-  );
 
   const actionContent = (
     <div className="community-pass__actions">
@@ -219,19 +148,13 @@ export function QqGroupPanel() {
                   background="#0d0d0d"
                   color="#b91b20"
                 >
-                  <Card className="community-pass">
-                    {passContent}
-                    <div className="community-pass__actions-layer">{actionContent}</div>
-                  </Card>
-                  {floatingQrCard}
+                  <CommunityPassShell actions={actionContent} />
+                  <CommunityFloatingQrCard />
                 </DecryptReveal>
               ) : (
                 <div className="community-stage__decrypt">
-                  <Card className="community-pass">
-                    {passContent}
-                    <div className="community-pass__actions-layer">{actionContent}</div>
-                  </Card>
-                  {floatingQrCard}
+                  <CommunityPassShell actions={actionContent} />
+                  <CommunityFloatingQrCard />
                 </div>
               )}
 

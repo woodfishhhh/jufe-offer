@@ -1015,6 +1015,13 @@ body:has(.home-deck) footer {
   contain-intrinsic-size: auto 100%;
 }
 
+/* Adjacent GPU-composited slides can expose a one-device-pixel seam while the
+   track settles. Keep their flow height unchanged and overlap their paint area. */
+.home-deck[data-effects-mode="enhanced"] .home-deck__track > * {
+  height: calc(100% + 2px);
+  margin-bottom: -2px;
+}
+
 .home-deck__dots {
   position: absolute;
   top: 50%;
@@ -1599,6 +1606,13 @@ body:has(.home-deck) footer {
   background-size: 62px 62px;
 }
 
+.campus-projects-stage__responsive-wall {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+}
+
 .campus-projects-stage__wall::before {
   position: absolute;
   inset: 0;
@@ -2129,6 +2143,39 @@ body:has(.home-deck) footer {
   width: clamp(2.5rem, 5vw, 5rem);
   height: 1px;
   background: rgb(255 255 255 / 0.24);
+}
+
+.community-adaptive-fallback,
+.community-adaptive-fallback__enhanced,
+.community-adaptive-fallback__lite {
+  height: 100%;
+  min-height: 0;
+}
+
+.community-adaptive-fallback__lite {
+  display: none;
+}
+
+.community-stage--placeholder .community-pass__join,
+.community-stage--placeholder .community-pass__copy-button {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+@media (max-width: 1023px), (not (any-pointer: fine)) {
+  .community-adaptive-fallback__enhanced {
+    display: none;
+  }
+
+  .community-adaptive-fallback__lite {
+    display: block;
+  }
 }
 
 .community-stage--lite {
@@ -2908,6 +2955,46 @@ body:has(.home-deck[data-effects-mode="lite"]) footer {
 
 .home-deck[data-effects-mode="lite"] .home-deck__dots {
   display: none;
+}
+
+@media (max-width: 1023px), (not (any-pointer: fine)) {
+  .home-deck[data-effects-mode="pending"] {
+    height: auto;
+  }
+
+  html:has(.home-deck[data-effects-mode="pending"]),
+  body:has(.home-deck[data-effects-mode="pending"]) {
+    overflow-y: auto;
+    overscroll-behavior-y: auto;
+  }
+
+  body:has(.home-deck[data-effects-mode="pending"]) footer {
+    display: block;
+  }
+
+  .home-deck[data-effects-mode="pending"] .home-deck__viewport,
+  .home-deck[data-effects-mode="pending"] .home-deck__track {
+    height: auto;
+    overflow: visible;
+  }
+
+  .home-deck[data-effects-mode="pending"] .home-deck__track {
+    transform: none !important;
+    will-change: auto;
+  }
+
+  .home-deck[data-effects-mode="pending"] .home-deck__track > * {
+    height: auto;
+    min-height: min(760px, 100svh);
+    overflow: hidden;
+    scroll-margin-top: var(--nav-clearance);
+    content-visibility: auto;
+    contain-intrinsic-size: auto 760px;
+  }
+
+  .home-deck[data-effects-mode="pending"] .home-deck__dots {
+    display: none;
+  }
 }
 
 @media (max-width: 767px) {

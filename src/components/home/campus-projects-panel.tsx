@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ArrowUpRight, Github, GitPullRequest, Star, Users } from "lucide-react";
+import { ArrowUpRight, Github, GitPullRequest, Users } from "lucide-react";
+import { ResponsiveCampusProjectsWall } from "@/components/home/responsive-campus-projects-wall";
 import { buttonVariants } from "@/components/ui/button";
-import { formatRepositoryStars, type RepositoryCardData } from "@/lib/repository-card";
+import type { RepositoryCardData } from "@/lib/repository-card";
 import { cn } from "@/lib/utils";
 
 export function CampusProjectsPanel({ projects }: { projects: RepositoryCardData[] }) {
@@ -55,38 +56,7 @@ export function CampusProjectsPanel({ projects }: { projects: RepositoryCardData
 
         <div className="campus-projects-stage__wall">
           {topProjects.length ? (
-            <div
-              className="campus-projects-lite"
-              aria-label="当前 Star 数最多的三个校内开源项目"
-            >
-              {topProjects.map((project, index) => (
-                <a
-                  key={project.href}
-                  href={project.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="campus-projects-lite__card"
-                >
-                  <span className="campus-projects-lite__meta">
-                    <span>#{String(index + 1).padStart(2, "0")}</span>
-                    <span>
-                      <Github aria-hidden="true" />
-                      {project.primaryLanguage ?? "Open source"}
-                    </span>
-                  </span>
-                  <strong>
-                    {project.owner} / {project.name}
-                  </strong>
-                  <small>{project.description}</small>
-                  <span className="campus-projects-lite__footer">
-                    <span>
-                      <Star aria-hidden="true" /> {formatRepositoryStars(project.stars)}
-                    </span>
-                    <ArrowUpRight aria-hidden="true" />
-                  </span>
-                </a>
-              ))}
-            </div>
+            <ResponsiveCampusProjectsWall projects={topProjects} />
           ) : (
             <div className="campus-projects-stage__empty" role="status">
               <Github aria-hidden="true" />
@@ -96,7 +66,7 @@ export function CampusProjectsPanel({ projects }: { projects: RepositoryCardData
           )}
           <div className="campus-projects-stage__wall-label" aria-hidden="true">
             <span>{topProjects.length.toString().padStart(2, "0")} repositories</span>
-            <span>HIGHEST STARRED / OPEN</span>
+            <span>DRAG / HOVER / OPEN</span>
           </div>
         </div>
       </div>

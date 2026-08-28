@@ -59,8 +59,8 @@ export function getEffectsMode(): EffectsMode {
   if (shouldReduceEffects()) return "lite";
 
   const compact = window.matchMedia("(max-width: 1023px)").matches;
-  const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
-  return compact || coarsePointer ? "lite" : "enhanced";
+  const hasFinePointer = window.matchMedia("(any-pointer: fine)").matches;
+  return compact || !hasFinePointer ? "lite" : "enhanced";
 }
 
 export function supportsWebGL2() {

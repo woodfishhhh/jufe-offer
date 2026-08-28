@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState, type ComponentType, type RefObject } from "react";
 import { ArrowUpRight, Copy } from "lucide-react";
 import { FlowingWaves } from "@/components/flowing-waves";
+import {
+  CommunityFloatingQrCard,
+  CommunityPassShell,
+} from "@/components/home/community-pass-shell";
 import { ResilientImage } from "@/components/resilient-image";
 import { site } from "@/data/site";
 import { useEffectsMode } from "@/hooks/use-effects-mode";
@@ -10,8 +14,10 @@ import { scheduleIdle } from "@/lib/client-performance";
 
 function CommunityLitePanel({
   containerRef,
+  includeId = true,
 }: {
-  containerRef: RefObject<HTMLElement | null>;
+  containerRef?: RefObject<HTMLElement | null>;
+  includeId?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -28,7 +34,7 @@ function CommunityLitePanel({
   return (
     <section
       ref={containerRef}
-      id="qq-group"
+      id={includeId ? "qq-group" : undefined}
       className="community-stage community-stage--lite"
     >
       <FlowingWaves className="text-white opacity-18" />
@@ -68,6 +74,99 @@ function CommunityLitePanel({
         </div>
       </div>
     </section>
+  );
+}
+
+function CommunityEnhancedPlaceholder({
+  containerRef,
+  includeId = true,
+}: {
+  containerRef?: RefObject<HTMLElement | null>;
+  includeId?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  async function copyNumber() {
+    try {
+      await navigator.clipboard.writeText(site.qqGroupNumber);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  const actions = (
+    <div className="community-pass__actions">
+      <a
+        href={site.qqGroupJoinUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="community-pass__join"
+      >
+        一键加入群聊
+        <ArrowUpRight />
+      </a>
+      <button
+        type="button"
+        className="community-pass__copy-button"
+        onClick={() => void copyNumber()}
+      >
+        <Copy />
+        {copied ? "已复制" : site.qqGroupNumber}
+      </button>
+    </div>
+  );
+
+  return (
+    <section
+      ref={containerRef}
+      id={includeId ? "qq-group" : undefined}
+      className="community-stage community-stage--placeholder"
+    >
+      <FlowingWaves className="text-white opacity-18" />
+      <div className="community-stage__glow" aria-hidden="true" />
+      <div className="community-stage__inner">
+        <div className="community-stage__header">
+          <div className="community-stage__index">
+            <span>02</span>
+            <span className="community-stage__index-line" />
+            <span>Community</span>
+          </div>
+          <p>JUFE / COMPUTER SCIENCE NETWORK</p>
+        </div>
+
+        <div className="community-stage__viewport">
+          <div className="community-stage__interaction">
+            <div className="community-stage__scene">
+              <div className="community-pass__depth community-pass__depth--far" />
+              <div className="community-pass__depth community-pass__depth--near" />
+              <div className="community-stage__decrypt">
+                <CommunityPassShell actions={actions} />
+                <CommunityFloatingQrCard />
+              </div>
+              <div className="community-stage__caption" aria-hidden="true">
+                <span>JXUFE — 2026</span>
+                <span>STUDENT COMMUNITY</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CommunityAdaptiveFallback() {
+  return (
+    <div id="qq-group" className="community-adaptive-fallback">
+      <div className="community-adaptive-fallback__enhanced">
+        <CommunityEnhancedPlaceholder includeId={false} />
+      </div>
+      <div className="community-adaptive-fallback__lite">
+        <CommunityLitePanel includeId={false} />
+      </div>
+    </div>
   );
 }
 
@@ -112,5 +211,11 @@ export function DeferredCommunityPanel() {
   }, [effectsMode, fallback, nearby, panel]);
 
   const Panel = panel;
-  return Panel ? <Panel /> : <CommunityLitePanel containerRef={containerRef} />;
+  if (effectsMode === "pending") return <CommunityAdaptiveFallback />;
+  if (Panel) return <Panel />;
+  return effectsMode === "enhanced" && !fallback ? (
+    <CommunityEnhancedPlaceholder containerRef={containerRef} />
+  ) : (
+    <CommunityLitePanel containerRef={containerRef} />
+  );
 }
