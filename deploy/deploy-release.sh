@@ -510,7 +510,13 @@ cleanup_old_releases() {
   local green_target
   local old_release
   local rank=0
+  local release_count=0
+  local protected_count=0
+  local candidate_count=0
+  local removed_count=0
+  local removed_ids='none'
   local failed_release_ids=()
+  local removed_release_ids=()
 
   current_target="$(readlink -f "$APP_ROOT/current" 2>/dev/null || true)"
   previous_target="$(readlink -f "$APP_ROOT/previous" 2>/dev/null || true)"
@@ -519,15 +525,19 @@ cleanup_old_releases() {
 
   while IFS= read -r old_release; do
     rank=$((rank + 1))
+    release_count=$((release_count + 1))
     if [[ "$rank" -le 5 ]] \
       || [[ "$old_release" == "$current_target" ]] \
       || [[ "$old_release" == "$previous_target" ]] \
       || [[ "$old_release" == "$blue_target" ]] \
       || [[ "$old_release" == "$green_target" ]]; then
+      protected_count=$((protected_count + 1))
       continue
     fi
+    candidate_count=$((candidate_count + 1))
     if safe_remove_release_tree "$old_release"; then
-      log "Removed old release ${old_release##*/}."
+      removed_count=$((removed_count + 1))
+      removed_release_ids+=("${old_release##*/}")
     else
       failed_release_ids+=("${old_release##*/}")
     fi
@@ -538,6 +548,11 @@ cleanup_old_releases() {
       | awk '{ print $2 }'
   )
 
+  if (( removed_count > 0 )); then
+    removed_ids="${removed_release_ids[*]}"
+  fi
+  log "Release cleanup: scanned=$release_count protected=$protected_count candidates=$candidate_count removed=$removed_count failed=${#failed_release_ids[@]} removed_ids=$removed_ids."
+
   if (( ${#failed_release_ids[@]} > 0 )); then
     printf '[deploy] CLEANUP_WARNING failed_release_count=%s release_ids=%s\n' \
       "${#failed_release_ids[@]}" "${failed_release_ids[*]}" >&2
@@ -547,11 +562,17 @@ cleanup_old_releases() {
 
 cleanup_stale_staging() {
   local staging_dir
+  local scanned_count=0
+  local removed_count=0
+  local removed_ids='none'
   local failed_staging_ids=()
+  local removed_staging_ids=()
 
   while IFS= read -r staging_dir; do
+    scanned_count=$((scanned_count + 1))
     if safe_remove_release_tree "$staging_dir"; then
-      log "Removed stale staging release ${staging_dir##*/}."
+      removed_count=$((removed_count + 1))
+      removed_staging_ids+=("${staging_dir##*/}")
     else
       failed_staging_ids+=("${staging_dir##*/}")
     fi
@@ -562,6 +583,11 @@ cleanup_stale_staging() {
       | sort -nr \
       | awk '{ print $2 }'
   )
+
+  if (( removed_count > 0 )); then
+    removed_ids="${removed_staging_ids[*]}"
+  fi
+  log "Staging cleanup: scanned=$scanned_count removed=$removed_count failed=${#failed_staging_ids[@]} removed_ids=$removed_ids."
 
   if (( ${#failed_staging_ids[@]} > 0 )); then
     printf '[deploy] CLEANUP_WARNING failed_staging_count=%s staging_ids=%s\n' \

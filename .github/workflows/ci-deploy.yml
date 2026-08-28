@@ -262,7 +262,6 @@ jobs:
             exit 0
           fi
 
-          printf '%s\n' "$metrics"
           used_percent="$(printf '%s\n' "$metrics" | awk -F= '$1 == "used_percent" {print $2}')"
           available_kib="$(printf '%s\n' "$metrics" | awk -F= '$1 == "available_kib" {print $2}')"
           releases_kib="$(printf '%s\n' "$metrics" | awk -F= '$1 == "releases_kib" {print $2}')"
@@ -275,6 +274,7 @@ jobs:
 
           available_mb=$((available_kib / 1024))
           releases_mb=$((releases_kib / 1024))
+          echo "[deploy-monitor] filesystem_used=${used_percent}% available=${available_mb}MiB releases=${releases_mb}MiB release_count=${release_count}"
           {
             echo "### Production disk usage"
             echo
