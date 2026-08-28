@@ -14,6 +14,11 @@ readonly FAILURE_REVISION="cccccccccccccccccccccccccccccccccccccccc"
 readonly MIGRATION_FAILURE_REVISION="dddddddddddddddddddddddddddddddddddddddd"
 readonly COMPATIBLE_FAILURE_REVISION="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 readonly DEPLOY_SCRIPT="/workspace/deploy/deploy-release.sh"
+readonly APP_USER="jufe-offer"
+
+if ! id "$APP_USER" >/dev/null 2>&1; then
+  useradd --system --user-group --no-create-home "$APP_USER"
+fi
 
 install -d \
   "$APP_ROOT/releases" \
@@ -51,6 +56,7 @@ make_release() {
       >"$manifest_file"
     mv "$manifest_file" release.manifest.sha256
   )
+  chown -R "$APP_USER:$APP_USER" "$release_root"
 }
 
 install -d /tmp/jufe-stubs
@@ -110,6 +116,12 @@ chmod 0755 \
   /usr/local/bin/sleep \
   /usr/local/sbin/jufe-offer-switch-upstream
 install -m 0755 /tmp/jufe-stubs/systemctl /usr/bin/systemctl
+chmod 0666 /tmp/deploy-events
+chown -R "$APP_USER:$APP_USER" "$APP_ROOT"
+
+run_deploy() {
+  runuser -u "$APP_USER" -- bash "$DEPLOY_SCRIPT" "$@"
+}
 
 make_release "$APP_ROOT/releases/$ACTIVE_REVISION" "$ACTIVE_REVISION"
 make_release "$APP_ROOT/releases/.staging-$SUCCESS_REVISION" "$SUCCESS_REVISION"
@@ -122,7 +134,7 @@ export TEST_GREEN_REVISION="$SUCCESS_REVISION"
 export TEST_PUBLIC_REVISION="$SUCCESS_REVISION"
 export TEST_FAIL_PORT=""
 : >/tmp/deploy-events
-bash "$DEPLOY_SCRIPT" activate "$SUCCESS_REVISION" maintenance
+run_deploy activate "$SUCCESS_REVISION" maintenance
 
 [[ "$(readlink -f "$APP_ROOT/current")" == "$APP_ROOT/releases/$SUCCESS_REVISION" ]]
 [[ "$(readlink -f "$APP_ROOT/previous")" == "$APP_ROOT/releases/$ACTIVE_REVISION" ]]
@@ -139,7 +151,7 @@ export TEST_GREEN_REVISION="$SUCCESS_REVISION"
 export TEST_PUBLIC_REVISION="$SUCCESS_REVISION"
 export TEST_FAIL_PORT=3020
 : >/tmp/deploy-events
-if bash "$DEPLOY_SCRIPT" activate "$FAILURE_REVISION" maintenance; then
+if run_deploy activate "$FAILURE_REVISION" maintenance; then
   printf 'Expected the unhealthy candidate deployment to fail.\n' >&2
   exit 1
 fi
@@ -174,7 +186,7 @@ export TEST_GREEN_REVISION="$SUCCESS_REVISION"
 export TEST_PUBLIC_REVISION="$SUCCESS_REVISION"
 export TEST_FAIL_PORT=3020
 : >/tmp/deploy-events
-if bash "$DEPLOY_SCRIPT" activate "$MIGRATION_FAILURE_REVISION" maintenance; then
+if run_deploy activate "$MIGRATION_FAILURE_REVISION" maintenance; then
   printf 'Expected the unhealthy migrated candidate deployment to fail.\n' >&2
   exit 1
 fi
@@ -199,7 +211,7 @@ export TEST_GREEN_REVISION="$SUCCESS_REVISION"
 export TEST_PUBLIC_REVISION="$SUCCESS_REVISION"
 export TEST_FAIL_PORT=3020
 : >/tmp/deploy-events
-if bash "$DEPLOY_SCRIPT" activate "$COMPATIBLE_FAILURE_REVISION" compatible; then
+if run_deploy activate "$COMPATIBLE_FAILURE_REVISION" compatible; then
   printf 'Expected the unhealthy compatible-migration candidate to fail.\n' >&2
   exit 1
 fi

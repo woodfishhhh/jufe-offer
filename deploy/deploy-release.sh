@@ -4,6 +4,7 @@ set -Eeuo pipefail
 umask 027
 
 readonly APP_ROOT="/opt/jufe-offer"
+readonly APP_USER="jufe-offer"
 readonly RELEASES_DIR="$APP_ROOT/releases"
 readonly INCOMING_DIR="$APP_ROOT/incoming"
 readonly SHARED_DIR="$APP_ROOT/shared"
@@ -43,6 +44,43 @@ fail() {
   exit 1
 }
 
+validate_deploy_identity() {
+  local expected_uid
+  local expected_gid
+
+  expected_uid="$(id -u "$APP_USER")" || fail "Deploy user $APP_USER does not exist."
+  expected_gid="$(id -g "$APP_USER")" || fail "Deploy group for $APP_USER does not exist."
+
+  if [[ "$(id -u)" != "$expected_uid" || "$(id -g)" != "$expected_gid" ]]; then
+    fail "This script must run as $APP_USER, not $(id -un)."
+  fi
+}
+
+validate_deploy_directories() {
+  local expected_owner
+  local directory
+  local actual_owner
+
+  expected_owner="$(id -u "$APP_USER"):$(id -g "$APP_USER")"
+  for directory in \
+    "$RELEASES_DIR" \
+    "$INCOMING_DIR" \
+    "$SHARED_DIR" \
+    "$SLOTS_DIR" \
+    "$BACKUPS_DIR"; do
+    if [[ ! -d "$directory" ]]; then
+      fail "Deploy directory is missing: $directory"
+    fi
+    actual_owner="$(stat -c '%u:%g' "$directory")"
+    if [[ "$actual_owner" != "$expected_owner" ]]; then
+      fail "Deploy directory has unexpected ownership: $directory ($actual_owner, expected $expected_owner)"
+    fi
+    if [[ ! -w "$directory" ]]; then
+      fail "Deploy directory is not writable by $APP_USER: $directory"
+    fi
+  done
+}
+
 validate_release_id() {
   if [[ ! "$release_id" =~ ^[0-9a-f]{40}$ ]]; then
     printf 'Invalid release id.\n' >&2
@@ -68,6 +106,9 @@ other_slot() {
 
 safe_remove_release_tree() {
   local target="$1"
+  local error_log
+  local error_count
+  local first_error
 
   if [[ ! "$target" =~ ^/opt/jufe-offer/releases/(\.staging-)?[0-9a-f]{40}$ ]]; then
     printf 'Refusing to remove unsafe release path: %s\n' "$target" >&2
@@ -75,7 +116,18 @@ safe_remove_release_tree() {
   fi
 
   if [[ -e "$target" ]]; then
-    rm -rf --one-file-system -- "$target"
+    error_log="$(mktemp "${TMPDIR:-/tmp}/jufe-release-cleanup.XXXXXX")"
+    if rm -rf --one-file-system -- "$target" 2>"$error_log"; then
+      rm -f -- "$error_log"
+      return 0
+    fi
+
+    error_count="$(wc -l <"$error_log" | tr -d '[:space:]')"
+    first_error="$(sed -n '1p' "$error_log" | tr -d '\r\n')"
+    printf '[deploy] CLEANUP_WARNING release=%s errors=%s detail=%s\n' \
+      "${target##*/}" "$error_count" "$first_error" >&2
+    rm -f -- "$error_log"
+    return 1
   fi
 }
 
@@ -458,6 +510,7 @@ cleanup_old_releases() {
   local green_target
   local old_release
   local rank=0
+  local failed_release_ids=()
 
   current_target="$(readlink -f "$APP_ROOT/current" 2>/dev/null || true)"
   previous_target="$(readlink -f "$APP_ROOT/previous" 2>/dev/null || true)"
@@ -473,13 +526,48 @@ cleanup_old_releases() {
       || [[ "$old_release" == "$green_target" ]]; then
       continue
     fi
-    safe_remove_release_tree "$old_release"
+    if safe_remove_release_tree "$old_release"; then
+      log "Removed old release ${old_release##*/}."
+    else
+      failed_release_ids+=("${old_release##*/}")
+    fi
   done < <(
     find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d \
       -regextype posix-extended -regex '.*/[0-9a-f]{40}' -printf '%T@ %p\n' \
       | sort -nr \
       | awk '{ print $2 }'
   )
+
+  if (( ${#failed_release_ids[@]} > 0 )); then
+    printf '[deploy] CLEANUP_WARNING failed_release_count=%s release_ids=%s\n' \
+      "${#failed_release_ids[@]}" "${failed_release_ids[*]}" >&2
+    return 1
+  fi
+}
+
+cleanup_stale_staging() {
+  local staging_dir
+  local failed_staging_ids=()
+
+  while IFS= read -r staging_dir; do
+    if safe_remove_release_tree "$staging_dir"; then
+      log "Removed stale staging release ${staging_dir##*/}."
+    else
+      failed_staging_ids+=("${staging_dir##*/}")
+    fi
+  done < <(
+    find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d \
+      -mmin +1440 -regextype posix-extended \
+      -regex '.*/\.staging-[0-9a-f]{40}' -printf '%T@ %p\n' \
+      | sort -nr \
+      | awk '{ print $2 }'
+  )
+
+  if (( ${#failed_staging_ids[@]} > 0 )); then
+    printf '[deploy] CLEANUP_WARNING failed_staging_count=%s staging_ids=%s\n' \
+      "${#failed_staging_ids[@]}" "${failed_staging_ids[*]}" >&2
+    return 1
+  fi
 }
 
 cleanup_old_backups() {
@@ -501,6 +589,7 @@ prepare_staging() {
 
   mkdir -p "$RELEASES_DIR" "$INCOMING_DIR" "$SHARED_DIR/cache" \
     "$SHARED_DIR/pnpm-store" "$SHARED_DIR/prisma" "$SLOTS_DIR" "$BACKUPS_DIR"
+  validate_deploy_directories
   safe_remove_release_tree "$staging_dir"
   mkdir -p "$staging_dir"
   log "Prepared $staging_dir for rsync."
@@ -519,6 +608,7 @@ activate_release() {
 
   mkdir -p "$RELEASES_DIR" "$SHARED_DIR/cache" "$SHARED_DIR/pnpm-store" \
     "$SHARED_DIR/prisma" "$SLOTS_DIR" "$BACKUPS_DIR"
+  validate_deploy_directories
   exec 9>"$APP_ROOT/.deploy.lock"
   flock -n 9 || fail 'Another deployment is already running.'
 
@@ -642,12 +732,14 @@ activate_release() {
   fi
 
   cleanup_old_releases || log 'WARNING: release retention cleanup failed.'
+  cleanup_stale_staging || log 'WARNING: stale staging cleanup failed.'
   cleanup_old_backups || log 'WARNING: database backup retention cleanup failed.'
 
   log "Deployment successful: $release_id is active on $candidate_slot."
 }
 
 validate_release_id
+validate_deploy_identity
 case "$command_name" in
   prepare) prepare_staging ;;
   activate) activate_release ;;

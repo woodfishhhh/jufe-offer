@@ -112,8 +112,11 @@ bootstrap 会保存带 UTC 时间戳的旧 systemd unit 和 Nginx site 文件；
 - release id 必须是 40 位小写 hex。
 - rsync 目标固定为 `/opt/jufe-offer/releases/.staging-<sha>`，不接收任意远程路径。
 - deploy user 只能管理四个固定 template-service 命令和调用只接受 `blue|green` 的 root helper。
+- GitHub Actions 的 `DEPLOY_USER` 必须是 `jufe-offer`；部署脚本会拒绝其他运行身份，release、staging、shared、slots、backups 目录必须由该用户拥有并可写。
+- rsync 显式禁用 owner/group 保留，远端新增 release 文件统一由 `jufe-offer` 创建；历史目录如有 root 或未知 UID 所有权，应由 root 定向修复后再清理。
 - Nginx helper 只会生成 `172.18.0.1:3020` 或 `:3021`，不会接受任意配置文本。
 - `.env` 不进入 artifact 或 rsync payload；应用仍通过 systemd 读取 `/opt/jufe-offer/.env`。
 - formal release 不再原地修改；rsync 禁止 `--inplace`。
+- 历史 release 或超过 24 小时的 staging 清理失败不会阻断已完成的切流，但会输出 `CLEANUP_WARNING`，Actions 会生成黄色 warning；每次部署结束还会记录磁盘使用率、release 数量和 release 占用，80%/90% 分别触发 warning。
 
 release 默认保留最近 5 个，同时无条件保护 `current`、`previous`、blue slot 和 green slot 的目标。hardlink 的目录项删除不会破坏仍被其他 release 引用的 inode。

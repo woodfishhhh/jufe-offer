@@ -140,6 +140,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
           remote="${DEPLOY_USER}@${DEPLOY_HOST}"
+          test "$DEPLOY_USER" = "jufe-offer"
           staging_dir="/opt/jufe-offer/releases/.staging-${GITHUB_SHA}"
           remote_script="/opt/jufe-offer/incoming/deploy-release.sh"
           remote_script_staging="${remote_script}.next-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
@@ -173,6 +174,8 @@ jobs:
               --partial \
               --partial-dir=.rsync-partial \
               --safe-links \
+              --no-owner \
+              --no-group \
               --link-dest=/opt/jufe-offer/current \
               --itemize-changes \
               --stats \
@@ -193,13 +196,26 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
           remote="${DEPLOY_USER}@${DEPLOY_HOST}"
-          ssh \
-            -p "$DEPLOY_PORT" \
-            -o BatchMode=yes \
-            -o ServerAliveInterval=30 \
-            -o ServerAliveCountMax=6 \
-            "$remote" \
-            "bash /opt/jufe-offer/incoming/deploy-release.sh activate '${GITHUB_SHA}' '${MIGRATION_MODE}'"
+          set +e
+          deploy_output="$(
+            ssh \
+              -p "$DEPLOY_PORT" \
+              -o BatchMode=yes \
+              -o ServerAliveInterval=30 \
+              -o ServerAliveCountMax=6 \
+              "$remote" \
+              "bash /opt/jufe-offer/incoming/deploy-release.sh activate '${GITHUB_SHA}' '${MIGRATION_MODE}'" \
+              2>&1
+          )"
+          deploy_status=$?
+          set -e
+          printf '%s\n' "$deploy_output"
+          while IFS= read -r line; do
+            if [[ "$line" == *CLEANUP_WARNING* ]]; then
+              echo "::warning title=Release cleanup warning::$line"
+            fi
+          done <<<"$deploy_output"
+          exit "$deploy_status"
 
       # This is observability outside the server. Failure does not invoke database or traffic rollback.
       - name: Verify public release with retries
@@ -214,3 +230,64 @@ jobs:
               process.exit(1);
             }
           ' "$response" "$GITHUB_SHA"
+
+      - name: Monitor production disk usage
+        if: always()
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          remote="${DEPLOY_USER}@${DEPLOY_HOST}"
+          set +e
+          metrics="$(
+            ssh \
+              -p "$DEPLOY_PORT" \
+              -o BatchMode=yes \
+              -o ServerAliveInterval=30 \
+              -o ServerAliveCountMax=6 \
+              "$remote" \
+              'set -eu
+               used_percent="$(df -P /opt/jufe-offer | awk "NR == 2 {gsub(/%/, \"\", \$5); print \$5}")"
+               available_kib="$(df -Pk /opt/jufe-offer | awk "NR == 2 {print \$4}")"
+               releases_kib="$(du -skx /opt/jufe-offer/releases | awk "NR == 1 {print \$1}")"
+               release_count="$(find /opt/jufe-offer/releases -mindepth 1 -maxdepth 1 -type d -regextype posix-extended -regex ".*/[0-9a-f]{40}" | wc -l | tr -d "[:space:]")"
+               printf "used_percent=%s\\navailable_kib=%s\\nreleases_kib=%s\\nrelease_count=%s\\n" "$used_percent" "$available_kib" "$releases_kib" "$release_count"'
+          )"
+          monitor_status=$?
+          set -e
+
+          if [[ "$monitor_status" -ne 0 ]]; then
+            echo "::warning title=Production disk monitor unavailable::Could not read disk usage from the deployment host."
+            exit 0
+          fi
+
+          printf '%s\n' "$metrics"
+          used_percent="$(printf '%s\n' "$metrics" | awk -F= '$1 == "used_percent" {print $2}')"
+          available_kib="$(printf '%s\n' "$metrics" | awk -F= '$1 == "available_kib" {print $2}')"
+          releases_kib="$(printf '%s\n' "$metrics" | awk -F= '$1 == "releases_kib" {print $2}')"
+          release_count="$(printf '%s\n' "$metrics" | awk -F= '$1 == "release_count" {print $2}')"
+
+          if ! [[ "$used_percent" =~ ^[0-9]+$ && "$available_kib" =~ ^[0-9]+$ && "$releases_kib" =~ ^[0-9]+$ && "$release_count" =~ ^[0-9]+$ ]]; then
+            echo "::warning title=Production disk monitor invalid::The deployment host returned an invalid disk usage payload."
+            exit 0
+          fi
+
+          available_mb=$((available_kib / 1024))
+          releases_mb=$((releases_kib / 1024))
+          {
+            echo "### Production disk usage"
+            echo
+            echo "| Metric | Value |"
+            echo "| --- | ---: |"
+            echo "| Filesystem used | ${used_percent}% |"
+            echo "| Filesystem available | ${available_mb} MiB |"
+            echo "| Release storage | ${releases_mb} MiB |"
+            echo "| Formal release count | ${release_count} |"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+          if (( used_percent >= 90 )); then
+            echo "::warning title=Production disk critical::Filesystem usage is ${used_percent}% (critical threshold: 90%)."
+          elif (( used_percent >= 80 )); then
+            echo "::warning title=Production disk high::Filesystem usage is ${used_percent}% (warning threshold: 80%)."
+          fi
