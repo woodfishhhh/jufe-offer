@@ -5,6 +5,7 @@ import { ArrowUpRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { HOME_CATEGORY_PREVIEWS } from "@/data/categories";
+import { useEffectsMode } from "@/hooks/use-effects-mode";
 import { scheduleIdle } from "@/lib/client-performance";
 import { requestResourceList } from "@/lib/client-resources";
 
@@ -34,8 +35,11 @@ async function requestCounts() {
 
 export function HomeCategoryGrid() {
   const [counts, setCounts] = useState(cachedCounts);
+  const effectsMode = useEffectsMode();
 
   useEffect(() => {
+    if (effectsMode !== "enhanced") return;
+
     let cancelled = false;
     const cancelIdle = scheduleIdle(() => {
       void requestCounts()
@@ -48,7 +52,7 @@ export function HomeCategoryGrid() {
       cancelled = true;
       cancelIdle();
     };
-  }, []);
+  }, [effectsMode]);
 
   return (
     <div className="mt-6 grid grid-cols-2 gap-2.5 sm:mt-8 sm:grid-cols-3 sm:gap-3 lg:gap-4">
@@ -71,7 +75,11 @@ export function HomeCategoryGrid() {
               <ArrowUpRight className="text-muted-foreground group-hover:text-foreground size-4 transition-transform duration-150 ease-[var(--ease-out)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </span>
             <span className="text-muted-foreground mt-3 block text-xs sm:mt-5">
-              {counts ? `${counts.get(item.category)?.total ?? 0} 个资源` : "资源统计中"}
+              {counts
+                ? `${counts.get(item.category)?.total ?? 0} 个资源`
+                : effectsMode === "enhanced"
+                  ? "资源统计中"
+                  : "浏览精选资源"}
             </span>
           </Card>
         </Link>

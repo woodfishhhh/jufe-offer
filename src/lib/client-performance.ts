@@ -8,6 +8,8 @@ type NavigatorWithHints = Navigator & {
   deviceMemory?: number;
 };
 
+export type EffectsMode = "lite" | "enhanced";
+
 const canvasReleaseTimers = new WeakMap<
   HTMLCanvasElement,
   ReturnType<typeof setTimeout>
@@ -49,11 +51,16 @@ export function shouldReduceEffects() {
 }
 
 export function shouldAvoidFullPageCanvas() {
-  if (typeof window === "undefined") return true;
-  return (
-    shouldReduceEffects() ||
-    window.matchMedia("(max-width: 767px) and (pointer: coarse)").matches
-  );
+  return getEffectsMode() === "lite";
+}
+
+export function getEffectsMode(): EffectsMode {
+  if (typeof window === "undefined") return "lite";
+  if (shouldReduceEffects()) return "lite";
+
+  const compact = window.matchMedia("(max-width: 1023px)").matches;
+  const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+  return compact || coarsePointer ? "lite" : "enhanced";
 }
 
 export function supportsWebGL2() {

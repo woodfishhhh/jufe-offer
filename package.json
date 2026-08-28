@@ -19,7 +19,8 @@
     "sync:campus-projects": "tsx scripts/campus-project-avatars.ts",
     "sync:campus-project-avatars": "tsx scripts/campus-project-avatars.ts",
     "friend-link-bot": "tsx scripts/friend-link-bot.ts",
-    "test:friend-links": "tsx --test scripts/friend-link-bot.test.ts scripts/campus-project-avatars.test.ts scripts/remote-resource-admin.test.ts scripts/visitor-count.test.ts",
+    "test:friend-links": "tsx --test scripts/friend-link-bot.test.ts scripts/campus-project-avatars.test.ts scripts/remote-resource-admin.test.ts scripts/visitor-count.test.ts scripts/analytics.test.ts",
+    "test:mobile-ui": "node .agents/skills/jufe-mobile-ui/scripts/audit-mobile.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {

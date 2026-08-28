@@ -49,8 +49,8 @@ const CONFIG = {
   pingWarnMs: 120,
   maxDpr: 2,
   starDensityDivisor: 8000,
-  planetSizeMin: 32,
-  planetSizeMax: 48,
+  planetSizeMin: 44,
+  planetSizeMax: 56,
   maxDelta: 0.05,
   tau: Math.PI * 2,
 } as const;

@@ -23,8 +23,9 @@ export function RepositoryShowcaseCard({
         "before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_12%_0%,rgba(255,255,255,0.1),transparent_42%)] before:content-['']",
         compact
           ? "h-full p-3"
-          : "min-h-[228px] rounded-[1.5rem] border border-white/12 p-5",
-        feed && "min-h-[210px] sm:min-h-[190px]",
+          : feed
+            ? "min-h-[172px] rounded-[1.25rem] border border-white/12 p-4 sm:min-h-[180px] sm:rounded-[1.5rem] sm:p-5"
+            : "min-h-[228px] rounded-[1.5rem] border border-white/12 p-5",
       )}
     >
       <span className="relative z-[1] flex min-w-0 items-center justify-between gap-3">
@@ -32,21 +33,21 @@ export function RepositoryShowcaseCard({
           <img
             src={repository.avatarPath}
             alt={`${repository.avatarLogin} 的 GitHub 头像`}
-            width={compact ? 30 : 42}
-            height={compact ? 30 : 42}
+            width={compact ? 30 : feed ? 36 : 42}
+            height={compact ? 30 : feed ? 36 : 42}
             loading="lazy"
             decoding="async"
             draggable={false}
             className={cn(
               "repository-showcase-card__avatar shrink-0 rounded-full border border-white/15 bg-white/[0.06] object-cover",
-              compact ? "size-[30px]" : "size-[42px]",
+              compact ? "size-[30px]" : feed ? "size-9" : "size-[42px]",
             )}
           />
           <span className="min-w-0">
             <span
               className={cn(
                 "block truncate font-mono tracking-[0.08em] text-white/44 uppercase",
-                compact ? "text-[7px]" : "text-[9px]",
+                compact ? "text-[7px]" : feed ? "text-[8px]" : "text-[9px]",
               )}
             >
               {repository.avatarLogin === repository.owner
@@ -56,7 +57,7 @@ export function RepositoryShowcaseCard({
             <span
               className={cn(
                 "mt-0.5 block truncate font-mono text-white/72",
-                compact ? "text-[9px]" : "text-xs",
+                compact ? "text-[9px]" : feed ? "text-[11px]" : "text-xs",
               )}
             >
               @{repository.avatarLogin}
@@ -67,14 +68,18 @@ export function RepositoryShowcaseCard({
         <span
           className={cn(
             "inline-flex shrink-0 items-center rounded-full border border-white/10 bg-white/[0.045] font-mono text-white/74",
-            compact ? "gap-1 px-1.5 py-1 text-[8px]" : "gap-1.5 px-2.5 py-1.5 text-xs",
+            compact
+              ? "gap-1 px-1.5 py-1 text-[8px]"
+              : feed
+                ? "gap-1 px-2 py-1 text-[11px]"
+                : "gap-1.5 px-2.5 py-1.5 text-xs",
           )}
           aria-label={`${formatRepositoryStars(repository.stars)} 个 Star`}
         >
           <Star
             className={cn(
               "fill-[#f6c453] text-[#f6c453]",
-              compact ? "size-2.5" : "size-3.5",
+              compact ? "size-2.5" : feed ? "size-3" : "size-3.5",
             )}
             aria-hidden="true"
           />
@@ -82,11 +87,16 @@ export function RepositoryShowcaseCard({
         </span>
       </span>
 
-      <span className={cn("relative z-[1] block min-w-0", compact ? "mt-2" : "mt-5")}>
+      <span
+        className={cn(
+          "relative z-[1] block min-w-0",
+          compact ? "mt-2" : feed ? "mt-3" : "mt-5",
+        )}
+      >
         <strong
           className={cn(
             "font-display block truncate font-semibold tracking-[-0.035em]",
-            compact ? "text-[13px]" : "text-xl sm:text-2xl",
+            compact ? "text-[13px]" : feed ? "text-lg sm:text-xl" : "text-xl sm:text-2xl",
           )}
         >
           {repository.name}
@@ -96,7 +106,9 @@ export function RepositoryShowcaseCard({
             "mt-1 block overflow-hidden text-white/52",
             compact
               ? "line-clamp-2 text-[8px] leading-[1.35]"
-              : "line-clamp-3 text-sm leading-6",
+              : feed
+                ? "line-clamp-2 text-xs leading-5 sm:text-sm sm:leading-6"
+                : "line-clamp-3 text-sm leading-6",
           )}
         >
           {repository.description}
@@ -106,7 +118,11 @@ export function RepositoryShowcaseCard({
       <span
         className={cn(
           "relative z-[1] mt-auto flex min-w-0 items-center gap-2 border-t border-white/9 font-mono tracking-[0.08em] text-white/34 uppercase",
-          compact ? "pt-1.5 text-[7px]" : "pt-3.5 text-[9px]",
+          compact
+            ? "pt-1.5 text-[7px]"
+            : feed
+              ? "pt-2.5 text-[8px]"
+              : "pt-3.5 text-[9px]",
         )}
       >
         <span className="truncate">

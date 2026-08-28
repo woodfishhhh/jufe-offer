@@ -30,9 +30,11 @@ export function FluidNav({
     ready: false,
   });
 
-  const fallbackHref = siteNavItems.some((item) => item.href === pathname)
-    ? pathname
-    : "/";
+  const fallbackHref =
+    pathname === "/" || /^\/[1-6]$/.test(pathname)
+      ? "/"
+      : (siteNavItems.find((item) => item.href !== "/" && pathname.startsWith(item.href))
+          ?.href ?? "/");
   const activeHref = activeHrefProp ?? fallbackHref;
 
   const updateIndicator = useCallback(() => {

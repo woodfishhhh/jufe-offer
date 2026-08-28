@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 const VISITOR_COUNT_STORAGE_KEY = "jufe-offer:visitor-counted:v1";
@@ -99,17 +100,21 @@ export function VisitorCountBadge() {
   if (hasError) return null;
 
   return (
-    <span
+    <Link
+      href="/analytics"
       data-testid="visitor-count-badge"
-      role="status"
-      aria-live="polite"
+      data-analytics-event="open-analytics"
       aria-label={total === null ? "正在读取网站浏览人数" : `网站浏览人数 ${total}`}
-      className="border-border bg-background/72 text-muted-foreground mt-5 inline-flex w-fit items-center gap-2 rounded-full border px-4 py-2 text-[11px] tracking-[0.26em] uppercase backdrop-blur-md"
+      className="border-border bg-background/72 text-muted-foreground hover:border-foreground/30 hover:text-foreground mt-5 inline-flex min-h-11 w-fit items-center gap-2 rounded-full border px-4 py-2 text-[11px] tracking-[0.26em] uppercase backdrop-blur-md transition-colors"
     >
       <span>Visitors</span>
-      <span className="text-foreground font-mono tracking-normal">
+      <span
+        role="status"
+        aria-live="polite"
+        className="text-foreground font-mono tracking-normal"
+      >
         {total === null ? "..." : total.toLocaleString("zh-CN")}
       </span>
-    </span>
+    </Link>
   );
 }

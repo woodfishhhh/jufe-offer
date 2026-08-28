@@ -73,6 +73,12 @@ export function SiteHeader() {
         </HeaderChip>
       </header>
 
+      <div className="site-mobile-dock">
+        <div className="site-mobile-dock__surface">
+          <FluidNav variant="dock" />
+        </div>
+      </div>
+
       {loginOpen ? (
         <LoginDialog open={loginOpen} onClose={() => setLoginOpen(false)} />
       ) : null}

@@ -5,12 +5,12 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
-import { MasonryGrid } from "@egjs/react-grid";
 import { Columns3, GitFork, List, Menu, Search, Star } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth-provider";
@@ -52,6 +52,13 @@ const ResourceFormDialog = dynamic(
     ),
   { ssr: false },
 );
+const MasonryResults = dynamic(
+  () =>
+    import("@/components/resources/resource-masonry-results").then(
+      (module) => module.ResourceMasonryResults,
+    ),
+  { ssr: false },
+);
 
 type SortValue = "newest" | "title";
 type DirectoryStats = {
@@ -89,16 +96,17 @@ function isResourceView(value: string | null): value is ResourceView {
   return value === "feed" || value === "masonry";
 }
 
-const THREE_COLUMN_QUERY = "(min-width: 768px)";
+const PAGE_SIZE = 20;
+const DESKTOP_MASONRY_QUERY = "(min-width: 1024px) and (pointer: fine)";
 
 function subscribeToThreeColumns(onChange: () => void) {
-  const query = window.matchMedia(THREE_COLUMN_QUERY);
+  const query = window.matchMedia(DESKTOP_MASONRY_QUERY);
   query.addEventListener("change", onChange);
   return () => query.removeEventListener("change", onChange);
 }
 
 function getThreeColumnSnapshot() {
-  return window.matchMedia(THREE_COLUMN_QUERY).matches;
+  return window.matchMedia(DESKTOP_MASONRY_QUERY).matches;
 }
 
 function SkeletonResults({ view }: { view: ResourceView }) {
@@ -139,46 +147,6 @@ function SkeletonResults({ view }: { view: ResourceView }) {
         />
       ))}
     </div>
-  );
-}
-
-function MasonryResults({
-  resources,
-  authenticated,
-  columns,
-  onEdit,
-  onDelete,
-}: {
-  resources: ResourceDto[];
-  authenticated: boolean;
-  columns: 1 | 3;
-  onEdit: (resource: ResourceDto) => void;
-  onDelete: (resource: ResourceDto) => void;
-}) {
-  const [ready, setReady] = useState(false);
-
-  return (
-    <MasonryGrid
-      className="py-5"
-      style={{ visibility: ready ? "visible" : "hidden" }}
-      column={columns}
-      gap={16}
-      align="stretch"
-      useResizeObserver
-      observeChildren
-      onRenderComplete={() => setReady(true)}
-    >
-      {resources.map((resource) => (
-        <ResourceCard
-          key={resource.id}
-          resource={resource}
-          view="masonry"
-          authenticated={authenticated}
-          onEdit={onEdit}
-          onDelete={onDelete}
-        />
-      ))}
-    </MasonryGrid>
   );
 }
 
@@ -356,18 +324,22 @@ export function ResourceBoard() {
   const [formError, setFormError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>();
   const [deleteError, setDeleteError] = useState("");
+  const [pagination, setPagination] = useState({ key: "", count: PAGE_SIZE });
+  const [readyMasonryLayoutKey, setReadyMasonryLayoutKey] = useState("");
+  const lazyLoadRef = useRef<HTMLDivElement>(null);
 
   const q = searchParams.get("q") ?? "";
   const category = searchParams.get("category") ?? "";
   const featured = searchParams.get("featured") === "1";
   const sort: SortValue = searchParams.get("sort") === "title" ? "title" : "newest";
   const rawView = searchParams.get("view");
-  const view: ResourceView = isResourceView(rawView) ? rawView : "masonry";
+  const requestedView: ResourceView = isResourceView(rawView) ? rawView : "masonry";
   const useThreeMasonryColumns = useSyncExternalStore(
     subscribeToThreeColumns,
     getThreeColumnSnapshot,
     () => false,
   );
+  const view: ResourceView = useThreeMasonryColumns ? requestedView : "feed";
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
@@ -377,6 +349,9 @@ export function ResourceBoard() {
     if (sort !== "newest") params.set("sort", sort);
     return params.toString();
   }, [q, category, featured, sort]);
+  const paginationKey = `${queryString}:${requestedView}`;
+  const visibleCount = pagination.key === paginationKey ? pagination.count : PAGE_SIZE;
+  const masonryLayoutKey = `${paginationKey}:${visibleCount}:${useThreeMasonryColumns ? "three" : "one"}`;
 
   const loadDirectoryStats = useCallback(async () => {
     try {
@@ -537,12 +512,47 @@ export function ResourceBoard() {
   }
 
   const directoryLabel = featured ? "精选资源" : category || "全部资源";
+  const visibleResources = resources.slice(0, visibleCount);
+  const hasMore = visibleResources.length < resources.length;
+  const loadNextBatch = useCallback(() => {
+    setPagination((current) => {
+      const currentCount = current.key === paginationKey ? current.count : PAGE_SIZE;
+      return {
+        key: paginationKey,
+        count: Math.min(currentCount + PAGE_SIZE, resources.length),
+      };
+    });
+  }, [paginationKey, resources.length]);
+
+  useEffect(() => {
+    const target = lazyLoadRef.current;
+    const resultsAreLaidOut =
+      view === "feed" || readyMasonryLayoutKey === masonryLayoutKey;
+    if (!target || !hasMore || loading || loadError || !resultsAreLaidOut) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) loadNextBatch();
+      },
+      { rootMargin: "0px" },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [
+    hasMore,
+    loadError,
+    loading,
+    loadNextBatch,
+    masonryLayoutKey,
+    readyMasonryLayoutKey,
+    view,
+  ]);
 
   return (
-    <div className="bg-background h-dvh min-h-0 overflow-hidden">
-      <div className="bg-background h-full w-full">
-        <div className="relative h-full w-full overflow-hidden px-5 min-[640px]:px-8 min-[1024px]:pr-0">
-          <div className="grid h-full items-start min-[1024px]:grid-cols-[220px_minmax(0,1fr)] min-[1024px]:gap-8">
+    <div className="resource-page bg-background min-h-0 min-h-dvh min-[1024px]:h-dvh min-[1024px]:overflow-hidden">
+      <div className="bg-background min-h-dvh w-full min-[1024px]:h-full min-[1024px]:min-h-0">
+        <div className="relative min-h-dvh w-full px-5 min-[640px]:px-8 min-[1024px]:h-full min-[1024px]:min-h-0 min-[1024px]:overflow-hidden min-[1024px]:pr-0">
+          <div className="grid min-h-dvh items-start min-[1024px]:h-full min-[1024px]:min-h-0 min-[1024px]:grid-cols-[220px_minmax(0,1fr)] min-[1024px]:gap-8">
             <aside className="border-border hidden h-full min-h-0 border-r pt-[calc(var(--nav-float-inset)+var(--nav-island-height)+0.15rem)] min-[1024px]:block">
               <div className="h-full overflow-y-auto pr-5">
                 <DirectoryNavigation
@@ -554,17 +564,17 @@ export function ResourceBoard() {
               </div>
             </aside>
 
-            <main className="h-full min-w-0 overflow-y-auto">
+            <main className="min-w-0 min-[1024px]:h-full min-[1024px]:overflow-y-auto">
               <div
                 data-testid="resource-toolbar"
-                className="border-border -mx-5 border-b px-5 pt-[calc(var(--nav-float-inset)+var(--nav-island-height)+0.15rem)] pb-4 min-[1024px]:mx-0 min-[1024px]:pr-8 min-[1024px]:pl-0 sm:-mx-8 sm:px-8"
+                className="resource-toolbar border-border -mx-5 border-b px-5 pt-[calc(var(--nav-float-inset)+var(--nav-island-height)+0.35rem)] pb-4 min-[1024px]:mx-0 min-[1024px]:pr-8 min-[1024px]:pl-0 sm:-mx-8 sm:px-8"
               >
                 <div className="flex items-center gap-2">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => setDirectoryOpen(true)}
-                    className="shrink-0 min-[1024px]:hidden"
+                    className="min-h-11 shrink-0 min-[1024px]:hidden"
                     aria-label={`打开分类目录，当前为${directoryLabel}`}
                   >
                     <Menu className="size-4" />
@@ -588,13 +598,13 @@ export function ResourceBoard() {
                         defaultValue={q}
                         placeholder="搜索标题、简介、分类或标签"
                         aria-label="搜索资源"
-                        className="h-10 pl-10"
+                        className="h-11 pl-10"
                       />
                     </div>
                     <Button
                       type="submit"
                       aria-label="搜索"
-                      className="shrink-0 px-4 sm:px-5"
+                      className="min-h-11 shrink-0 px-4 sm:px-5"
                     >
                       <Search className="size-4 sm:hidden" />
                       <span className="hidden sm:inline">搜索</span>
@@ -602,7 +612,7 @@ export function ResourceBoard() {
                   </form>
                 </div>
 
-                <div className="mt-3 flex flex-wrap items-center gap-2">
+                <div className="resource-toolbar__controls mt-3 flex flex-wrap items-center gap-2">
                   <div className="mr-auto min-w-0">
                     <p className="truncate text-sm font-medium">{directoryLabel}</p>
                     <p
@@ -613,7 +623,7 @@ export function ResourceBoard() {
                         ? "正在整理资源"
                         : loadError
                           ? "加载失败"
-                          : `共 ${resources.length} 项`}
+                          : `共 ${resources.length} 项 · 当前已加载 ${visibleResources.length} 项${hasMore ? " · 向下滚动自动继续" : " · 已全部加载"}`}
                       {q ? ` · 关键词 “${q}”` : ""}
                     </p>
                   </div>
@@ -626,14 +636,14 @@ export function ResourceBoard() {
                       })
                     }
                     aria-label="排序方式"
-                    className="w-[132px] sm:w-[150px]"
+                    className="h-11 w-[132px] sm:w-[150px]"
                   >
                     <NativeSelectOption value="newest">最新添加</NativeSelectOption>
                     <NativeSelectOption value="title">按名称排序</NativeSelectOption>
                   </NativeSelect>
 
                   <div
-                    className="border-border bg-muted/50 flex items-center rounded-xl border p-1"
+                    className="resource-view-options border-border bg-muted/50 hidden items-center rounded-xl border p-1 min-[1024px]:flex"
                     role="group"
                     aria-label="资源展示方式"
                   >
@@ -719,8 +729,8 @@ export function ResourceBoard() {
                     </p>
                   </div>
                 ) : view === "feed" ? (
-                  <div className="border-border bg-card my-5 overflow-hidden rounded-2xl border">
-                    {resources.map((resource) => (
+                  <div className="resource-feed-list border-border bg-card my-5 overflow-hidden rounded-2xl border">
+                    {visibleResources.map((resource) => (
                       <ResourceCard
                         key={resource.id}
                         resource={resource}
@@ -734,13 +744,40 @@ export function ResourceBoard() {
                 ) : (
                   <MasonryResults
                     key={`${queryString}:${useThreeMasonryColumns ? "three" : "one"}`}
-                    resources={resources}
+                    resources={visibleResources}
                     authenticated={authenticated}
                     columns={useThreeMasonryColumns ? 3 : 1}
+                    onReady={() => setReadyMasonryLayoutKey(masonryLayoutKey)}
                     onEdit={editResource}
                     onDelete={setDeleting}
                   />
                 )}
+
+                {!loading && !loadError && hasMore ? (
+                  <div
+                    ref={lazyLoadRef}
+                    data-testid="resource-lazy-sentinel"
+                    className="resource-auto-load"
+                  >
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      onClick={loadNextBatch}
+                      className="min-h-12 min-w-52"
+                    >
+                      <span>继续加载下一批</span>
+                      <span className="text-muted-foreground block text-xs">
+                        向下滚动会自动加载 · 剩余{" "}
+                        {resources.length - visibleResources.length} 项
+                      </span>
+                    </Button>
+                  </div>
+                ) : !loading && !loadError && resources.length > 0 ? (
+                  <p className="resource-auto-load resource-auto-load--complete">
+                    全部 {resources.length} 项资源已加载
+                  </p>
+                ) : null}
               </div>
             </main>
           </div>

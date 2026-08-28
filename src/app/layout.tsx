@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Manrope, Syne } from "next/font/google";
+import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { AuthProvider } from "@/components/auth-provider";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="bg-background text-foreground selection:bg-foreground selection:text-background flex min-h-full flex-col font-sans">
         <AuthProvider>
+          <AnalyticsTracker />
           <SiteHeader />
           <div className="relative flex min-h-0 flex-1 flex-col">
             <main className="min-h-0 flex-1">{children}</main>

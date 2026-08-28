@@ -118,3 +118,29 @@ model SiteMetric {
   value     Int      @default(0)
   updatedAt DateTime @updatedAt
 }
+
+model AnalyticsEvent {
+  id              String   @id @default(cuid())
+  eventType       String
+  eventName       String?
+  path            String
+  title           String?
+  referrerHost    String?
+  sessionId       String
+  visitorId       String
+  browser         String
+  operatingSystem String
+  device          String
+  language        String?
+  timezone        String?
+  metricName      String?
+  metricValue     Float?
+  metricRating    String?
+  dataJson        String   @default("{}")
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt, eventType])
+  @@index([sessionId, createdAt])
+  @@index([path, eventType])
+  @@index([visitorId, createdAt])
+}

@@ -121,6 +121,7 @@ function AdminActions({
         type="button"
         variant="ghost"
         size="icon-sm"
+        className="size-11"
         onClick={() => onEdit(resource)}
         aria-label={`编辑「${resource.title}」`}
       >
@@ -130,6 +131,7 @@ function AdminActions({
         type="button"
         variant="ghost"
         size="icon-sm"
+        className="size-11"
         onClick={() => onDelete(resource)}
         aria-label={`删除「${resource.title}」`}
       >
@@ -152,7 +154,8 @@ function ResourceLink({
       aria-label={`打开「${resource.title}」`}
       className={cn(
         buttonVariants({ variant: "outline", size: compact ? "icon-sm" : "sm" }),
-        "group/link shrink-0",
+        "group/link min-h-11 shrink-0",
+        compact && "size-11",
       )}
     >
       {compact ? <span className="sr-only">打开链接</span> : "打开链接"}
@@ -164,7 +167,10 @@ function ResourceLink({
 function FeedCard(props: ResourceCardProps) {
   const { resource, authenticated, onEdit, onDelete } = props;
   return (
-    <article className="group/feed border-border hover:bg-muted/45 grid min-w-0 gap-4 border-b px-4 py-5 transition-colors last:border-b-0 sm:grid-cols-[3rem_minmax(0,1fr)_auto] sm:px-5">
+    <article
+      data-testid="resource-result-card"
+      className="resource-feed-card group/feed border-border hover:bg-muted/45 grid min-w-0 gap-4 border-b px-4 py-5 transition-colors last:border-b-0 sm:grid-cols-[3rem_minmax(0,1fr)_auto] sm:px-5"
+    >
       <div
         className="bg-foreground text-background hidden size-11 items-center justify-center rounded-full font-mono text-sm font-semibold sm:flex"
         aria-hidden="true"
@@ -233,7 +239,11 @@ function MasonryCard(props: ResourceCardProps) {
     </Card>
   );
 
-  return <article className="w-full">{card}</article>;
+  return (
+    <article data-testid="resource-result-card" className="w-full">
+      {card}
+    </article>
+  );
 }
 
 function CampusRepositoryCard(props: ResourceCardProps) {
@@ -242,9 +252,10 @@ function CampusRepositoryCard(props: ResourceCardProps) {
 
   return (
     <article
+      data-testid="resource-result-card"
       className={cn(
         "group/repository relative w-full",
-        view === "feed" && "border-border border-b p-3 last:border-b-0 sm:p-4",
+        view === "feed" && "border-border border-b p-2.5 last:border-b-0 sm:p-4",
       )}
     >
       <ExternalLink

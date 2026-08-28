@@ -5,7 +5,8 @@ import { ArrowUpRight, Copy } from "lucide-react";
 import { FlowingWaves } from "@/components/flowing-waves";
 import { ResilientImage } from "@/components/resilient-image";
 import { site } from "@/data/site";
-import { scheduleIdle, shouldReduceEffects } from "@/lib/client-performance";
+import { useEffectsMode } from "@/hooks/use-effects-mode";
+import { scheduleIdle } from "@/lib/client-performance";
 
 function CommunityLitePanel({
   containerRef,
@@ -74,16 +75,26 @@ export function DeferredCommunityPanel() {
   const containerRef = useRef<HTMLElement>(null);
   const [panel, setPanel] = useState<ComponentType | null>(null);
   const [fallback, setFallback] = useState(false);
+  const [nearby, setNearby] = useState(false);
+  const effectsMode = useEffectsMode();
 
   useEffect(() => {
-    if (fallback || panel) return;
+    if (effectsMode !== "enhanced") return;
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setNearby(entry?.isIntersecting ?? false),
+      { rootMargin: "30% 0px", threshold: 0.01 },
+    );
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [effectsMode]);
+
+  useEffect(() => {
+    if (effectsMode !== "enhanced" || !nearby || fallback || panel) return;
     let cancelled = false;
 
     const load = () => {
-      if (shouldReduceEffects()) {
-        setFallback(true);
-        return;
-      }
       import("@/components/qq-group-panel")
         .then((module) => {
           if (!cancelled) setPanel(() => module.QqGroupPanel);
@@ -98,7 +109,7 @@ export function DeferredCommunityPanel() {
       cancelled = true;
       cancelIdle();
     };
-  }, [fallback, panel]);
+  }, [effectsMode, fallback, nearby, panel]);
 
   const Panel = panel;
   return Panel ? <Panel /> : <CommunityLitePanel containerRef={containerRef} />;

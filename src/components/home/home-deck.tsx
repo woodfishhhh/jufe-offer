@@ -1,6 +1,7 @@
 "use client";
 
 import { Children, useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffectsMode } from "@/hooks/use-effects-mode";
 import { scheduleIdle, shouldReduceEffects } from "@/lib/client-performance";
 import { cn } from "@/lib/utils";
 
@@ -94,8 +95,52 @@ export function HomeDeck({
   const trackRef = useRef<HTMLDivElement>(null);
   const goToSlideRef = useRef<(index: number) => void>(() => {});
   const [activeIndex, setActiveIndex] = useState(normalizedInitialIndex);
+  const effectsMode = useEffectsMode();
+  const enhanced = effectsMode === "enhanced";
 
   useEffect(() => {
+    if (enhanced) return;
+    const track = trackRef.current;
+    if (!track || slides.length === 0) return;
+
+    const sections = Array.from(track.children) as HTMLElement[];
+    const initialSection = sections[normalizedInitialIndex];
+    const initialFrame = window.requestAnimationFrame(() => {
+      if (initialSection && normalizedInitialIndex > 0) {
+        initialSection.scrollIntoView({ block: "start" });
+      }
+    });
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((left, right) => right.intersectionRatio - left.intersectionRatio)[0];
+        if (!visible) return;
+        const index = sections.indexOf(visible.target as HTMLElement);
+        if (index < 0) return;
+        setActiveIndex(index);
+        const nextPath = `/${index + 1}`;
+        if (window.location.pathname !== nextPath) {
+          window.history.replaceState(
+            window.history.state,
+            "",
+            `${nextPath}${window.location.search}`,
+          );
+        }
+      },
+      { rootMargin: "-22% 0px -58%", threshold: [0, 0.2, 0.5, 0.8] },
+    );
+    sections.forEach((section) => observer.observe(section));
+
+    return () => {
+      window.cancelAnimationFrame(initialFrame);
+      observer.disconnect();
+    };
+  }, [enhanced, normalizedInitialIndex, slides.length]);
+
+  useEffect(() => {
+    if (!enhanced) return;
     const viewport = viewportRef.current;
     const track = trackRef.current;
     if (!viewport || !track || slides.length === 0) return;
@@ -335,10 +380,10 @@ export function HomeDeck({
       activeGsap?.killTweensOf(deckTrack);
       goToSlideRef.current = () => {};
     };
-  }, [normalizedInitialIndex, slides.length]);
+  }, [enhanced, normalizedInitialIndex, slides.length]);
 
   return (
-    <div className={cn("home-deck", className)}>
+    <div className={cn("home-deck", className)} data-effects-mode={effectsMode}>
       <div ref={viewportRef} className="home-deck__viewport">
         <div ref={trackRef} className="home-deck__track">
           {slides}

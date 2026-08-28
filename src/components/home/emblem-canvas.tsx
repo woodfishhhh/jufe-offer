@@ -5,33 +5,15 @@ import { useEffect, useState, type ComponentType } from "react";
 import type { AsciiObjectProps } from "@/components/canvasui/AsciiObject";
 import { ResilientImage } from "@/components/resilient-image";
 import { site } from "@/data/site";
-import {
-  scheduleIdle,
-  shouldReduceEffects,
-  supportsWebGL2,
-  subscribeToPerformanceHints,
-} from "@/lib/client-performance";
+import { useEffectsMode } from "@/hooks/use-effects-mode";
+import { scheduleIdle, supportsWebGL2 } from "@/lib/client-performance";
 import { cn } from "@/lib/utils";
 
 export function EmblemCanvas({ className }: { className?: string }) {
   const [renderer, setRenderer] = useState<ComponentType<AsciiObjectProps> | null>(null);
   const [mode, setMode] = useState<"loading" | "active" | "fallback">("loading");
-  const [effectsAllowed, setEffectsAllowed] = useState(false);
-
-  useEffect(() => {
-    const update = () => {
-      const allowed =
-        !shouldReduceEffects() &&
-        !window.matchMedia("(max-width: 767px) and (pointer: coarse)").matches;
-      setEffectsAllowed(allowed);
-      if (!allowed) {
-        setRenderer(null);
-        setMode("fallback");
-      }
-    };
-    update();
-    return subscribeToPerformanceHints(update);
-  }, []);
+  const effectsMode = useEffectsMode();
+  const effectsAllowed = effectsMode === "enhanced";
 
   useEffect(() => {
     if (!effectsAllowed) return;
@@ -60,7 +42,7 @@ export function EmblemCanvas({ className }: { className?: string }) {
 
   return (
     <div className={cn("relative h-full min-h-[360px] w-full", className)}>
-      {Renderer && mode !== "fallback" ? (
+      {effectsAllowed && Renderer && mode !== "fallback" ? (
         <Renderer
           src="/models/jc.glb"
           className={cn(
@@ -96,7 +78,7 @@ export function EmblemCanvas({ className }: { className?: string }) {
       <div
         className={cn(
           "pointer-events-none absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_50%_45%,rgba(255,255,255,0.1),transparent_48%)] transition-opacity duration-250 ease-[var(--ease-out)]",
-          mode === "loading" ? "opacity-100" : "opacity-0",
+          effectsAllowed && mode === "loading" ? "opacity-100" : "opacity-0",
         )}
         aria-hidden="true"
       >
@@ -112,12 +94,12 @@ export function EmblemCanvas({ className }: { className?: string }) {
         </span>
       </div>
 
-      {mode === "fallback" ? (
+      {!effectsAllowed || mode === "fallback" ? (
         <div
           className="pointer-events-none absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_50%_45%,rgba(255,255,255,0.12),transparent_48%)]"
           aria-hidden="true"
         >
-          <span className="relative size-[min(52vw,56%)] max-h-[68%] max-w-[68%] overflow-hidden rounded-full border border-white/15 bg-white shadow-[0_30px_90px_-36px_rgba(255,255,255,0.42)]">
+          <span className="relative aspect-square w-[min(52vw,56%)] max-w-[68%] overflow-hidden rounded-full border border-white/15 bg-white shadow-[0_30px_90px_-36px_rgba(255,255,255,0.42)]">
             <ResilientImage
               src={site.logoSrc}
               alt=""

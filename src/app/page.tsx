@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { ArrowUpRight, Github, Heart, Search, Star } from "lucide-react";
-import { FlameWrap } from "@/components/canvasui/FlameWrap";
 import { FlowingWaves } from "@/components/flowing-waves";
 import { DeferredCommunityPanel } from "@/components/home/deferred-community-panel";
 import { EmblemCanvas } from "@/components/home/emblem-canvas";
 import { CampusProjectsPanel } from "@/components/home/campus-projects-panel";
-import { CareerRoadmapPanel } from "@/components/home/career-roadmap-panel";
+import { ResponsiveCareerRoadmap } from "@/components/home/responsive-career-roadmap";
+import { ResponsiveFlameWrap } from "@/components/home/responsive-flame-wrap";
 import { HomeCategoryGrid } from "@/components/home/home-category-grid";
 import { HomeDeck } from "@/components/home/home-deck";
 import { HeroProximityTitle } from "@/components/home/hero-proximity-title";
@@ -28,7 +28,7 @@ export async function HomePageContent({ initialIndex = 0 }: { initialIndex?: num
 
   return (
     <HomeDeck className="bg-background text-foreground" initialIndex={initialIndex}>
-      <section className="border-border relative overflow-hidden border-b lg:h-full lg:min-h-0">
+      <section className="home-hero-stage border-border relative overflow-hidden border-b lg:h-full lg:min-h-0">
         <div
           className="pointer-events-none absolute inset-0 overflow-hidden"
           aria-hidden="true"
@@ -79,7 +79,7 @@ export async function HomePageContent({ initialIndex = 0 }: { initialIndex?: num
               <div className="pointer-events-none absolute inset-x-6 top-6 z-10 flex items-center justify-between text-[10px] tracking-[0.18em] text-white/60 uppercase sm:inset-x-10 sm:top-10">
                 <span>GLB / 01</span>
               </div>
-              <EmblemCanvas className="min-h-0 lg:min-h-full" />
+              <EmblemCanvas className="min-h-[330px] lg:min-h-full" />
               <div className="pointer-events-none absolute inset-x-6 bottom-6 z-10 flex items-end justify-between text-[10px] tracking-[0.18em] text-white/60 uppercase sm:inset-x-10 sm:bottom-10">
                 <span>Jiangxi University of Finance &amp; Economics</span>
                 <span>1923—2026</span>
@@ -91,11 +91,11 @@ export async function HomePageContent({ initialIndex = 0 }: { initialIndex?: num
 
       <DeferredCommunityPanel />
 
-      <CareerRoadmapPanel />
+      <ResponsiveCareerRoadmap />
 
       <CampusProjectsPanel projects={campusProjects} />
 
-      <section className="border-border relative overflow-hidden border-b lg:h-full lg:min-h-0">
+      <section className="home-resource-stage border-border relative overflow-hidden border-b lg:h-full lg:min-h-0">
         <div className="mx-auto flex h-full max-w-[1280px] flex-col justify-center px-5 py-8 sm:px-8 sm:py-12 lg:py-14">
           <ScrollReveal className="flex flex-wrap items-end justify-between gap-3 sm:gap-5">
             <div className="flex items-end gap-5">
@@ -144,7 +144,7 @@ export async function HomePageContent({ initialIndex = 0 }: { initialIndex?: num
         </div>
       </section>
 
-      <section className="relative overflow-hidden bg-[#080808] text-white lg:h-full lg:min-h-0">
+      <section className="home-github-stage relative overflow-hidden bg-[#080808] text-white lg:h-full lg:min-h-0">
         <div
           className="pointer-events-none absolute inset-0 overflow-hidden"
           aria-hidden="true"
@@ -186,28 +186,7 @@ export async function HomePageContent({ initialIndex = 0 }: { initialIndex?: num
               </Link>
             </div>
 
-            <FlameWrap
-              color={[1, 0, 42 / 255]}
-              intensity={0.55}
-              height={200}
-              spread={8}
-              radius={37}
-              speed={0.25}
-              scale={1}
-              turbulence={0.93}
-              turbulenceScale={1.95}
-              turbulenceReach={61}
-              sparks={3}
-              sparkSize={0.6}
-              sparkDensity={0.8}
-              sparkSpeed={1}
-              rim={2.5}
-              melt={0}
-              distortion={8.5}
-              smoke={0.5}
-              ember={1.8}
-              scorch={0}
-            >
+            <ResponsiveFlameWrap>
               <TiltLink
                 href="https://github.com/woodfishhhh/jufe-offer"
                 target="_blank"
@@ -243,7 +222,7 @@ export async function HomePageContent({ initialIndex = 0 }: { initialIndex?: num
                   <span>TypeScript</span>
                 </span>
               </TiltLink>
-            </FlameWrap>
+            </ResponsiveFlameWrap>
           </ScrollReveal>
 
           <ScrollReveal
