@@ -409,12 +409,12 @@ export function CareerRoadmapPanel() {
               items={careerPaths.map((path) => path.name)}
               onChange={(index) => setSelectedIndex(index)}
               fontSize={3}
-              tilt={5.5}
+              tilt={0}
               blur={1}
               fade={0.05}
               minOpacity={0}
               inset={-50}
-              spacing={1}
+              spacing={1.4}
               smoothing={130}
               side="right"
               loop
