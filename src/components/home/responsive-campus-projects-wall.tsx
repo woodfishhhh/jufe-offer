@@ -11,9 +11,20 @@ const DriftWall = dynamic(
   { ssr: false },
 );
 
-function CampusProjectsLite({ projects }: { projects: RepositoryCardData[] }) {
+const DESKTOP_WALL_QUERY = "(min-width: 1024px) and (pointer: fine)";
+
+function CampusProjectsLite({
+  projects,
+  mobileOnly,
+}: {
+  projects: RepositoryCardData[];
+  mobileOnly: boolean;
+}) {
   return (
-    <div className="campus-projects-lite" aria-label="当前 Star 数最多的三个校内开源项目">
+    <div
+      className="campus-projects-lite"
+      aria-label={mobileOnly ? "当前 Star 数最多的三个校内开源项目" : "全部校内开源项目"}
+    >
       {projects.map((project, index) => (
         <a
           key={project.href}
@@ -52,7 +63,16 @@ export function ResponsiveCampusProjectsWall({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const effectsMode = useEffectsMode();
+  const [isDesktopWall, setIsDesktopWall] = useState(false);
   const [nearViewport, setNearViewport] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia(DESKTOP_WALL_QUERY);
+    const update = () => setIsDesktopWall(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     const element = containerRef.current;
@@ -68,10 +88,13 @@ export function ResponsiveCampusProjectsWall({
 
   return (
     <div ref={containerRef} className="campus-projects-stage__responsive-wall">
-      {effectsMode === "enhanced" && nearViewport ? (
+      {isDesktopWall && effectsMode === "enhanced" && nearViewport ? (
         <DriftWall items={projects} />
       ) : (
-        <CampusProjectsLite projects={projects} />
+        <CampusProjectsLite
+          projects={isDesktopWall ? projects : projects.slice(0, 3)}
+          mobileOnly={!isDesktopWall}
+        />
       )}
     </div>
   );

@@ -6,13 +6,11 @@ import type { RepositoryCardData } from "@/lib/repository-card";
 import { cn } from "@/lib/utils";
 
 export function CampusProjectsPanel({ projects }: { projects: RepositoryCardData[] }) {
-  const topProjects = [...projects]
-    .sort(
-      (left, right) =>
-        (right.stars ?? -1) - (left.stars ?? -1) ||
-        left.name.localeCompare(right.name, "zh-CN"),
-    )
-    .slice(0, 3);
+  const sortedProjects = [...projects].sort(
+    (left, right) =>
+      (right.stars ?? -1) - (left.stars ?? -1) ||
+      left.name.localeCompare(right.name, "zh-CN"),
+  );
 
   return (
     <section className="campus-projects-stage" aria-labelledby="campus-projects-title">
@@ -55,8 +53,8 @@ export function CampusProjectsPanel({ projects }: { projects: RepositoryCardData
         </div>
 
         <div className="campus-projects-stage__wall">
-          {topProjects.length ? (
-            <ResponsiveCampusProjectsWall projects={topProjects} />
+          {sortedProjects.length ? (
+            <ResponsiveCampusProjectsWall projects={sortedProjects} />
           ) : (
             <div className="campus-projects-stage__empty" role="status">
               <Github aria-hidden="true" />
@@ -65,7 +63,7 @@ export function CampusProjectsPanel({ projects }: { projects: RepositoryCardData
             </div>
           )}
           <div className="campus-projects-stage__wall-label" aria-hidden="true">
-            <span>{topProjects.length.toString().padStart(2, "0")} repositories</span>
+            <span>{sortedProjects.length.toString().padStart(2, "0")} repositories</span>
             <span>DRAG / HOVER / OPEN</span>
           </div>
         </div>
