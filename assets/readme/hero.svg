@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="640" viewBox="0 0 1600 640" role="img" aria-labelledby="title description">
   <title id="title">江财OFFER</title>
-  <description id="description">江财学生的实习、竞赛、学习资源与校内开源项目导航</description>
+  <description id="description">江财学生的机会、学习路径、社群与开放资源导航</description>
   <defs>
     <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1">
       <stop stop-color="#b91b20" stop-opacity="0.34"/>
@@ -26,20 +26,20 @@
   </g>
 
   <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" letter-spacing="5">
-    <text x="104" y="70" fill="#b91b20">JUFE · STUDENT RESOURCE DIRECTORY</text>
-    <text x="104" y="590" fill="#ffffff" fill-opacity="0.46">INTERNSHIP / COMPETITION / LEARNING / OPEN SOURCE</text>
+    <text x="104" y="70" fill="#b91b20">JUFE · OPPORTUNITY &amp; LEARNING INDEX</text>
+    <text x="104" y="590" fill="#ffffff" fill-opacity="0.46">OPPORTUNITY / ROADMAP / COMMUNITY / RESOURCES</text>
     <text x="1370" y="590" fill="#ffffff" fill-opacity="0.46">2026</text>
   </g>
 
   <text x="96" y="285" fill="#f5f5f2" font-family="Arial, Helvetica, 'Microsoft YaHei', sans-serif" font-size="126" font-weight="800" letter-spacing="-8">江财OFFER</text>
-  <text x="104" y="367" fill="#f5f5f2" fill-opacity="0.72" font-family="Arial, Helvetica, 'Microsoft YaHei', sans-serif" font-size="34" font-weight="500">打破信息差，把机会和同学们的作品汇在一起。</text>
+  <text x="104" y="367" fill="#f5f5f2" fill-opacity="0.72" font-family="Arial, Helvetica, 'Microsoft YaHei', sans-serif" font-size="34" font-weight="500">发现机会、选择路径、连接同学，把有价值的信息继续传下去。</text>
 
   <g transform="translate(104 426)" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" letter-spacing="2">
     <rect width="224" height="54" rx="27" fill="#b91b20"/>
     <text x="28" y="34" fill="#ffffff">01 — 06  EXPLORE</text>
     <rect x="240" width="260" height="54" rx="27" fill="#ffffff" fill-opacity="0.07" stroke="#ffffff" stroke-opacity="0.13"/>
-    <text x="270" y="34" fill="#ffffff" fill-opacity="0.72">DATABASE DRIVEN</text>
+    <text x="270" y="34" fill="#ffffff" fill-opacity="0.72">SEARCH &amp; FILTER</text>
     <rect x="516" width="246" height="54" rx="27" fill="#ffffff" fill-opacity="0.07" stroke="#ffffff" stroke-opacity="0.13"/>
-    <text x="546" y="34" fill="#f6c453">★ LOCAL ASSETS</text>
+    <text x="546" y="34" fill="#f6c453">★ BUILD TOGETHER</text>
   </g>
 </svg>

@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="900" viewBox="0 0 720 900" role="img" aria-labelledby="title description">
+  <title id="title">江财OFFER</title>
+  <description id="description">江财学生的机会、学习路径、社群与开放资源导航</description>
+  <defs>
+    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#b91b20" stop-opacity="0.38"/>
+      <stop offset="0.56" stop-color="#b91b20" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#050505" stop-opacity="0"/>
+    </linearGradient>
+    <pattern id="grid" width="72" height="72" patternUnits="userSpaceOnUse">
+      <path d="M72 0H0V72" fill="none" stroke="#ffffff" stroke-opacity="0.055"/>
+    </pattern>
+  </defs>
+
+  <rect width="720" height="900" rx="32" fill="#050505"/>
+  <rect width="720" height="900" rx="32" fill="url(#grid)"/>
+  <rect width="720" height="900" rx="32" fill="url(#glow)"/>
+  <path d="M0 0H16V900H0Z" fill="#b91b20"/>
+
+  <g fill="none" stroke="#ffffff" stroke-opacity="0.13">
+    <path d="M56 118H664"/>
+    <path d="M56 790H664"/>
+    <circle cx="574" cy="206" r="64"/>
+    <circle cx="574" cy="206" r="42"/>
+    <path d="M510 206H638M574 142V270"/>
+  </g>
+
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" letter-spacing="3">
+    <text x="56" y="76" fill="#b91b20">JUFE · OPPORTUNITY INDEX</text>
+    <text x="56" y="838" fill="#ffffff" fill-opacity="0.46">DISCOVER · SHARE · BUILD</text>
+    <text x="588" y="838" fill="#ffffff" fill-opacity="0.46">2026</text>
+  </g>
+
+  <text x="52" y="390" fill="#f5f5f2" font-family="Arial, Helvetica, 'Microsoft YaHei', sans-serif" font-size="76" font-weight="800" letter-spacing="-5">江财OFFER</text>
+  <g fill="#f5f5f2" fill-opacity="0.72" font-family="Arial, Helvetica, 'Microsoft YaHei', sans-serif" font-size="29" font-weight="500">
+    <text x="56" y="460">发现机会、选择路径、连接同学，</text>
+    <text x="56" y="504">把有价值的信息继续传下去。</text>
+  </g>
+
+  <g transform="translate(56 570)" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" letter-spacing="2">
+    <rect width="260" height="58" rx="29" fill="#b91b20"/>
+    <text x="30" y="37" fill="#ffffff">01 — 06  EXPLORE</text>
+    <rect y="78" width="260" height="58" rx="29" fill="#ffffff" fill-opacity="0.07" stroke="#ffffff" stroke-opacity="0.13"/>
+    <text x="30" y="115" fill="#ffffff" fill-opacity="0.72">SEARCH &amp; FILTER</text>
+    <rect y="156" width="286" height="58" rx="29" fill="#ffffff" fill-opacity="0.07" stroke="#ffffff" stroke-opacity="0.13"/>
+    <text x="30" y="193" fill="#f6c453">★ BUILD TOGETHER</text>
+  </g>
+</svg>

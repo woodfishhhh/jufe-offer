@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Manrope, Syne } from "next/font/google";
 import { AuthProvider } from "@/components/auth-provider";
-import { Glitch } from "@/components/canvasui/Glitch";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { AppToaster } from "@/components/toaster";
@@ -61,10 +60,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="bg-background text-foreground selection:bg-foreground selection:text-background flex min-h-full flex-col font-sans">
         <AuthProvider>
           <SiteHeader />
-          <Glitch interval={9} className="relative flex min-h-0 flex-1 flex-col">
+          <div className="relative flex min-h-0 flex-1 flex-col">
             <main className="min-h-0 flex-1">{children}</main>
             <SiteFooter />
-          </Glitch>
+          </div>
           <AppToaster />
         </AuthProvider>
       </body>
