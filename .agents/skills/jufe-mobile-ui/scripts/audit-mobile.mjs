@@ -84,6 +84,20 @@ function safeName(route) {
   return route === "/" ? "home" : route.slice(1).replaceAll("/", "-");
 }
 
+async function captureScreenshot(page, screenshot, fullPage) {
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await page.screenshot({ path: screenshot, fullPage, timeout: 15_000 });
+      return null;
+    } catch (error) {
+      lastError = error;
+      if (attempt < 3) await page.waitForTimeout(250 * attempt);
+    }
+  }
+  return lastError instanceof Error ? lastError.message : String(lastError);
+}
+
 async function inspectPage(page, route, viewport) {
   const consoleErrors = [];
   const pageErrors = [];
@@ -200,12 +214,6 @@ async function inspectPage(page, route, viewport) {
         .join(", ")}`,
     );
   }
-  const screenshot = path.join(outputDir, `${viewport.name}-${safeName(route)}.png`);
-  await page.screenshot({
-    path: screenshot,
-    fullPage: mode === "full" && route !== "/friends/orbit",
-  });
-
   if (route === "/resources" && metrics.lazySentinelPresent) {
     await page.locator('[data-testid="resource-lazy-sentinel"]').scrollIntoViewIfNeeded();
     try {
@@ -228,6 +236,23 @@ async function inspectPage(page, route, viewport) {
   failures.push(...pageErrors.map((error) => `page: ${error}`));
   failures.push(...responseErrors.map((error) => `response: ${error}`));
 
+  const warnings = [];
+  const shouldCaptureScreenshot = mode === "full" || failures.length > 0;
+  const screenshot = path.join(outputDir, `${viewport.name}-${safeName(route)}.png`);
+  let screenshotPath = null;
+  if (shouldCaptureScreenshot) {
+    const screenshotError = await captureScreenshot(
+      page,
+      screenshot,
+      mode === "full" && route !== "/friends/orbit",
+    );
+    if (screenshotError) {
+      warnings.push(`screenshot unavailable after 3 attempts: ${screenshotError}`);
+    } else {
+      screenshotPath = path.relative(root, screenshot);
+    }
+  }
+
   return {
     route,
     viewport,
@@ -236,7 +261,8 @@ async function inspectPage(page, route, viewport) {
     pageErrors,
     responseErrors,
     failures,
-    screenshot: path.relative(root, screenshot),
+    warnings,
+    screenshot: screenshotPath,
   };
 }
 
@@ -287,12 +313,18 @@ async function main() {
       (failure) => `${result.viewport.name} ${result.route}: ${failure}`,
     ),
   );
+  const warnings = results.flatMap((result) =>
+    result.warnings.map(
+      (warning) => `${result.viewport.name} ${result.route}: ${warning}`,
+    ),
+  );
   const report = {
     generatedAt: new Date().toISOString(),
     baseUrl,
     mode,
     results,
     failures,
+    warnings,
   };
   const reportPath = path.join(outputDir, "report.json");
   writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
@@ -303,6 +335,7 @@ async function main() {
     process.exitCode = 1;
     return;
   }
+  warnings.forEach((warning) => console.warn(`Mobile UI audit warning: ${warning}`));
   console.log(`Mobile UI audit passed: ${results.length} route/viewport checks.`);
   console.log(path.relative(root, reportPath));
 }

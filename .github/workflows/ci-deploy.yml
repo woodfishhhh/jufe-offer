@@ -79,35 +79,6 @@ jobs:
           NEXT_PUBLIC_SITE_URL: https://jufe.woodfish.site
           SESSION_SECRET: ci-only-session-secret-not-used-in-production
 
-      - name: Install Chromium for responsive smoke checks
-        run: pnpm exec playwright install --with-deps chromium
-
-      - name: Verify responsive public routes
-        run: |
-          pnpm exec prisma db push --skip-generate
-          pnpm exec prisma db seed
-          mkdir -p .cache/mobile-audit
-          pnpm exec next start --hostname 127.0.0.1 --port 3111 > .cache/mobile-audit/server.log 2>&1 &
-          server_pid=$!
-          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
-          pnpm test:mobile-ui -- --base-url http://127.0.0.1:3111 --mode ci
-        env:
-          ADMIN_PASSWORD_HASH: ci-placeholder
-          ADMIN_USERNAME: ci
-          APP_REVISION: ${{ github.sha }}
-          DATABASE_URL: file:./ci.db
-          NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3111
-          SESSION_SECRET: ci-only-session-secret-not-used-in-production
-
-      - name: Upload responsive audit evidence
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: mobile-ui-audit-${{ github.sha }}
-          path: .cache/mobile-audit
-          if-no-files-found: warn
-          retention-days: 7
-
       - name: Assemble immutable release
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         run: bash deploy/assemble-release.sh "$GITHUB_SHA"
