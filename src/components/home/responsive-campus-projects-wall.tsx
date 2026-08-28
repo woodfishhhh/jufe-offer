@@ -89,7 +89,7 @@ export function ResponsiveCampusProjectsWall({
   return (
     <div ref={containerRef} className="campus-projects-stage__responsive-wall">
       {isDesktopWall && effectsMode === "enhanced" && nearViewport ? (
-        <DriftWall items={projects} />
+        <DriftWall items={projects} dim={1} fade={0} tileHeight={180} tileWidth={280} />
       ) : (
         <CampusProjectsLite
           projects={isDesktopWall ? projects : projects.slice(0, 3)}
