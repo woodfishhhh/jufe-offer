@@ -1,0 +1,46 @@
+.cover {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+:global(.community-stage__decrypt):has(> .cover) > :global(.community-pass),
+:global(.community-stage__decrypt):has(> .cover) > :global(.community-qr-card) {
+  opacity: 0;
+}
+
+.cover::after {
+  content: "";
+  position: absolute;
+  top: 17%;
+  right: 4%;
+  width: min(24%, 248px);
+  aspect-ratio: 1;
+  border: 1px dotted #aaa;
+  border-radius: 1rem;
+  background:
+    repeating-linear-gradient(90deg, #777 0 1px, transparent 1px 5px),
+    repeating-linear-gradient(#0d0d0d 0 3px, #777 3px 4px);
+  opacity: 0.5;
+}
+
+.glyphs {
+  position: absolute;
+  top: 7%;
+  left: 0;
+  width: 78%;
+  height: 76%;
+  padding: 5%;
+  overflow: hidden;
+  color: #888;
+  background: #0d0d0d;
+  border: 1px dotted #777;
+  border-radius: clamp(1.4rem, 2.6vw, 2.25rem);
+  font:
+    600 10px/14px ui-monospace,
+    monospace;
+  letter-spacing: 2px;
+  white-space: pre;
+}

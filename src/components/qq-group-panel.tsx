@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useRef, type PointerEvent } from "react";
 import { ArrowUpRight, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { DecryptReveal } from "@/components/canvasui/DecryptReveal";
@@ -10,10 +10,9 @@ import {
   CommunityFloatingQrCard,
   CommunityPassShell,
 } from "@/components/home/community-pass-shell";
-import { ScrollReveal } from "@/components/scroll-reveal";
+import { CommunityCipherPlaceholder } from "@/components/home/community-cipher-placeholder";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { site } from "@/data/site";
-import { scheduleIdle } from "@/lib/client-performance";
 import { cn } from "@/lib/utils";
 
 const RESTING_TRANSFORM = "rotateX(2deg) rotateY(-6deg)";
@@ -22,11 +21,6 @@ export function QqGroupPanel() {
   const stageRef = useRef<HTMLElement>(null);
   const sceneRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<number | null>(null);
-  const [decryptReady, setDecryptReady] = useState(false);
-
-  useEffect(() => {
-    return scheduleIdle(() => setDecryptReady(true), 700);
-  }, []);
 
   useEffect(
     () => () => {
@@ -104,16 +98,16 @@ export function QqGroupPanel() {
       <div className="community-stage__glow" aria-hidden="true" />
 
       <div className="community-stage__inner">
-        <ScrollReveal className="community-stage__header">
+        <div className="community-stage__header">
           <div className="community-stage__index">
             <span>02</span>
             <span className="community-stage__index-line" />
             <span>Community</span>
           </div>
           <p>JUFE / COMPUTER SCIENCE NETWORK</p>
-        </ScrollReveal>
+        </div>
 
-        <ScrollReveal className="community-stage__viewport" delay={80}>
+        <div className="community-stage__viewport">
           <div
             className="community-stage__interaction"
             onPointerMove={handlePointerMove}
@@ -123,40 +117,34 @@ export function QqGroupPanel() {
               <div className="community-pass__depth community-pass__depth--far" />
               <div className="community-pass__depth community-pass__depth--near" />
 
-              {decryptReady ? (
-                <DecryptReveal
-                  className="community-stage__decrypt"
-                  radius={520}
-                  softness={0.46}
-                  cell={8}
-                  aspect={0.74}
-                  colored={1}
-                  brightness={1}
-                  legibility={1}
-                  contrast={1.08}
-                  exposure={1}
-                  scramble={0.12}
-                  scrambleSpeed={7}
-                  edgeWidth={0.18}
-                  edgeFlicker={0.8}
-                  edgeGlow={1.1}
-                  edgeTint={0.4}
-                  aberration={5}
-                  passthrough={0}
-                  threshold={0.028}
-                  smoothing={0.18}
-                  background="#0d0d0d"
-                  color="#b91b20"
-                >
-                  <CommunityPassShell actions={actionContent} />
-                  <CommunityFloatingQrCard />
-                </DecryptReveal>
-              ) : (
-                <div className="community-stage__decrypt">
-                  <CommunityPassShell actions={actionContent} />
-                  <CommunityFloatingQrCard />
-                </div>
-              )}
+              <DecryptReveal
+                pendingFallback={<CommunityCipherPlaceholder />}
+                className="community-stage__decrypt"
+                radius={520}
+                softness={0.46}
+                cell={8}
+                aspect={0.74}
+                colored={1}
+                brightness={1}
+                legibility={1}
+                contrast={1.08}
+                exposure={1}
+                scramble={0.12}
+                scrambleSpeed={7}
+                edgeWidth={0.18}
+                edgeFlicker={0.8}
+                edgeGlow={1.1}
+                edgeTint={0.4}
+                aberration={5}
+                passthrough={0}
+                threshold={0.028}
+                smoothing={0.18}
+                background="#0d0d0d"
+                color="#b91b20"
+              >
+                <CommunityPassShell actions={actionContent} />
+                <CommunityFloatingQrCard />
+              </DecryptReveal>
 
               <div className="community-stage__caption" aria-hidden="true">
                 <span>JXUFE — 2026</span>
@@ -164,7 +152,7 @@ export function QqGroupPanel() {
               </div>
             </div>
           </div>
-        </ScrollReveal>
+        </div>
       </div>
     </section>
   );

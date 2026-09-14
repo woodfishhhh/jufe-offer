@@ -504,6 +504,7 @@ export function supportsHtmlInCanvas(): boolean {
 export function createDecryptReveal(
   elements: DecryptRevealElements,
   options: DecryptRevealOptions = {},
+  lifecycle: { onReady?: () => void; onError?: () => void } = {},
 ): DecryptRevealInstance | null {
   const config = { ...DEFAULTS, ...options };
   const { source, content, output } = elements;
@@ -531,6 +532,8 @@ export function createDecryptReveal(
   );
 
   let contentDirty = false;
+  let contentUploaded = false;
+  let firstFrameDrawn = false;
   let cellsDirty = true;
   let wake = () => {};
   let paintTimer = 0;
@@ -544,6 +547,7 @@ export function createDecryptReveal(
         wake();
       } catch (error) {
         console.error("DecryptReveal capture error:", error);
+        lifecycle.onError?.();
       }
     };
   }
@@ -701,7 +705,10 @@ export function createDecryptReveal(
   function requestContentPaint() {
     if (!htmlInCanvas) return;
     window.clearTimeout(paintTimer);
-    paintTimer = window.setTimeout(() => paintable.requestPaint!(), 100);
+    paintTimer = window.setTimeout(
+      () => paintable.requestPaint!(),
+      firstFrameDrawn ? 100 : 0,
+    );
   }
 
   function syncCanvasSize() {
@@ -788,6 +795,7 @@ export function createDecryptReveal(
     cellsDirty = true;
     gl!.bindTexture(gl!.TEXTURE_2D, contentTexture);
     gl!.texImage2D(gl!.TEXTURE_2D, 0, gl!.RGBA, gl!.RGBA, gl!.UNSIGNED_BYTE, source);
+    contentUploaded = true;
   }
 
   function renderCells() {
@@ -877,6 +885,10 @@ export function createDecryptReveal(
     gl!.bindFramebuffer(gl!.FRAMEBUFFER, null);
     gl!.viewport(0, 0, output.width, output.height);
     gl!.drawArrays(gl!.TRIANGLE_STRIP, 0, 4);
+    if (contentUploaded && !firstFrameDrawn) {
+      firstFrameDrawn = true;
+      lifecycle.onReady?.();
+    }
   }
 
   let raf = 0;
@@ -887,7 +899,7 @@ export function createDecryptReveal(
 
   function frame(now: number) {
     if (destroyed) return;
-    if (!visible) {
+    if (!visible && firstFrameDrawn) {
       running = false;
       return;
     }
@@ -918,7 +930,7 @@ export function createDecryptReveal(
   }
 
   function start() {
-    if (destroyed || running || !visible) return;
+    if (destroyed || running || (!visible && firstFrameDrawn)) return;
     running = true;
     lastTime = performance.now();
     raf = requestAnimationFrame(frame);
@@ -1038,6 +1050,7 @@ export function createDecryptReveal(
 
 export interface DecryptRevealProps extends DecryptRevealOptions {
   children: ReactNode;
+  pendingFallback?: ReactNode;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -1046,6 +1059,7 @@ const emptySubscribe = () => () => {};
 
 export function DecryptReveal({
   children,
+  pendingFallback,
   className,
   style,
   ...options
@@ -1055,7 +1069,12 @@ export function DecryptReveal({
   const instanceRef = useRef<DecryptRevealInstance | null>(null);
   const [initialOptions] = useState(options);
   const [failed, setFailed] = useState(false);
-  const [effectsAllowed, setEffectsAllowed] = useState(false);
+  const [firstFrameReady, setFirstFrameReady] = useState(false);
+  const effectsAllowed = useSyncExternalStore(
+    subscribeToPerformanceHints,
+    () => !shouldReduceEffects(),
+    () => false,
+  );
   const [source] = useState<HTMLCanvasElement | null>(() => {
     if (typeof document === "undefined") return null;
     return document.createElement("canvas");
@@ -1067,12 +1086,7 @@ export function DecryptReveal({
     () => false,
   );
   const native = supported && effectsAllowed && !failed;
-
-  useEffect(() => {
-    const update = () => setEffectsAllowed(!shouldReduceEffects());
-    update();
-    return subscribeToPerformanceHints(update);
-  }, []);
+  const ready = native && firstFrameReady;
 
   useEffect(() => {
     if (!native || !source) return;
@@ -1096,17 +1110,33 @@ export function DecryptReveal({
     if (!content || !output) return;
     const inherited = window.getComputedStyle(output.parentElement ?? output);
     content.style.color = inherited.color;
+    // A failed capture must restore the usable DOM rather than leave a cover forever.
+    const timeout = window.setTimeout(() => setFailed(true), 4000);
     const frame = window.requestAnimationFrame(() => {
-      instanceRef.current = createDecryptReveal(
-        { source, content, output },
-        initialOptions,
-      );
-      if (!instanceRef.current) setFailed(true);
+      try {
+        instanceRef.current = createDecryptReveal(
+          { source, content, output },
+          initialOptions,
+          {
+            onReady: () => {
+              window.clearTimeout(timeout);
+              setFirstFrameReady(true);
+            },
+            onError: () => setFailed(true),
+          },
+        );
+        if (!instanceRef.current) setFailed(true);
+      } catch (error) {
+        console.error("DecryptReveal initialization error:", error);
+        setFailed(true);
+      }
     });
     return () => {
       window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
       instanceRef.current?.destroy();
       instanceRef.current = null;
+      setFirstFrameReady(false);
     };
   }, [initialOptions, native, source]);
 
@@ -1127,18 +1157,23 @@ export function DecryptReveal({
   });
 
   return (
-    <div className={className} style={{ position: "relative", ...style }}>
+    <div
+      className={className}
+      data-decrypt-state={ready ? "ready" : native ? "pending" : "fallback"}
+      style={{ position: "relative", ...style }}
+    >
       <div
         style={{
           position: "relative",
           width: "100%",
           height: "100%",
           overflow: "auto",
-          opacity: native ? 0 : 1,
+          opacity: ready || (native && pendingFallback) ? 0 : 1,
         }}
       >
         {children}
       </div>
+      {native && !ready ? pendingFallback : null}
       {native && source
         ? createPortal(
             <div
@@ -1165,6 +1200,7 @@ export function DecryptReveal({
             width: "100%",
             height: "100%",
             pointerEvents: "none",
+            opacity: ready ? 1 : 0,
           }}
         />
       ) : null}

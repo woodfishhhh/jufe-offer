@@ -10,7 +10,7 @@ import {
 import { ResilientImage } from "@/components/resilient-image";
 import { site } from "@/data/site";
 import { useEffectsMode } from "@/hooks/use-effects-mode";
-import { scheduleIdle } from "@/lib/client-performance";
+import { CommunityCipherPlaceholder } from "./community-cipher-placeholder";
 
 function CommunityLitePanel({
   containerRef,
@@ -144,6 +144,7 @@ function CommunityEnhancedPlaceholder({
               <div className="community-stage__decrypt">
                 <CommunityPassShell actions={actions} />
                 <CommunityFloatingQrCard />
+                <CommunityCipherPlaceholder />
               </div>
               <div className="community-stage__caption" aria-hidden="true">
                 <span>JXUFE — 2026</span>
@@ -203,10 +204,9 @@ export function DeferredCommunityPanel() {
         });
     };
 
-    const cancelIdle = scheduleIdle(load, 900);
+    load();
     return () => {
       cancelled = true;
-      cancelIdle();
     };
   }, [effectsMode, fallback, nearby, panel]);
 
