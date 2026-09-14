@@ -89,4 +89,12 @@ export const friends: FriendLink[] = [
     group: "personal",
     icon: "/api/friend-avatars/juniexd",
   },
+  {
+    name: "WindowsIt's Music Club",
+    description: "一个互联网老东西的落脚处",
+    url: "https://caiyan12.github.io/",
+    domain: "caiyan12.github.io",
+    group: "personal",
+    icon: "https://caiyan12.github.io/images/avatar.webp",
+  },
 ];
