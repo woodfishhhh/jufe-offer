@@ -4,6 +4,7 @@ import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { AuthProvider } from "@/components/auth-provider";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { SitePreloader } from "@/components/site-preloader";
 import { AppToaster } from "@/components/toaster";
 import { WebVitals } from "@/components/web-vitals";
 import { getSiteUrl, site } from "@/data/site";
@@ -61,6 +62,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${syne.variable} ${manrope.variable} h-full scroll-smooth antialiased`}
     >
       <body className="bg-background text-foreground selection:bg-foreground selection:text-background flex min-h-full flex-col font-sans">
+        <SitePreloader />
         <AuthProvider>
           <WebVitals />
           <AnalyticsTracker />

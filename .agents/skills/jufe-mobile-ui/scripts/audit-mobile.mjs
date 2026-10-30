@@ -118,6 +118,7 @@ async function inspectPage(page, route, viewport) {
     timeout: 30_000,
   });
   await page.locator("main").first().waitFor({ state: "attached", timeout: 10_000 });
+  await page.locator("[data-site-preloader]").waitFor({ state: "hidden", timeout: 15_000 });
   if (route === "/resources") {
     await page.locator('[data-testid="resource-toolbar"]').waitFor({ timeout: 10_000 });
     await page.waitForFunction(

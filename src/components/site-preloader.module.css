@@ -1,0 +1,252 @@
+.screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  height: 100dvh;
+  overflow: hidden;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: max(1.25rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right))
+    max(1.25rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
+  background: #f6f4ef;
+  color: #131313;
+  touch-action: none;
+  /* Failed client chunks must never leave an opaque screen over the site. */
+  animation: fail-open 0s 4.5s forwards;
+}
+
+.topline,
+.bottomline {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.topline {
+  min-height: 2.75rem;
+  color: rgb(19 19 19 / 0.55);
+  font-family: var(--font-sans);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+}
+
+.edition {
+  display: none;
+  letter-spacing: 0.05em;
+}
+
+.center {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  margin-block: 2rem;
+}
+
+.symbol {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.2rem;
+  margin-bottom: clamp(2rem, 6vh, 3.5rem);
+  animation: turn 2.4s var(--ease-in-out) infinite;
+}
+
+.symbol i {
+  border-radius: 0.15rem 0.65rem 0.15rem 0.65rem;
+  background: var(--brand-red);
+}
+
+.symbol i:nth-child(2),
+.symbol i:nth-child(3) {
+  rotate: 90deg;
+}
+
+.symbol i:nth-child(4) {
+  opacity: 0.4;
+}
+
+.wordmark {
+  padding-right: 0.2em;
+  font-family: var(--font-display);
+  font-size: clamp(4.5rem, 13vw, 11rem);
+  font-weight: 700;
+  line-height: 0.82;
+  letter-spacing: -0.075em;
+}
+
+.wordmark > span {
+  display: block;
+}
+
+.wordmark > span + span {
+  margin-top: 0.06em;
+  margin-left: 0.32em;
+}
+
+.dot {
+  color: var(--brand-red);
+}
+
+.caption {
+  margin-top: 1.75rem;
+  color: rgb(19 19 19 / 0.56);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+}
+
+.bottomline {
+  padding-bottom: 1rem;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: rgb(19 19 19 / 0.62);
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+}
+
+.statusDot {
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 50%;
+  background: var(--brand-red);
+}
+
+.skip {
+  display: inline-flex;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  padding-inline: 0.75rem;
+  border: 1px solid rgb(19 19 19 / 0.16);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.65rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 160ms ease;
+}
+
+.skip:focus-visible {
+  outline: 2px solid var(--brand-red);
+  outline-offset: 4px;
+}
+
+.track {
+  position: absolute;
+  inset: auto 0 0;
+  height: 1px;
+  overflow: hidden;
+  background: rgb(19 19 19 / 0.12);
+}
+
+.track span {
+  display: block;
+  width: 30%;
+  height: 100%;
+  background: var(--brand-red);
+  animation: travel 1.8s var(--ease-in-out) infinite;
+}
+
+.screen[data-paused="true"] .symbol,
+.screen[data-paused="true"] .track span {
+  animation-play-state: paused;
+}
+
+@keyframes turn {
+  0%,
+  10% {
+    transform: rotate(0deg);
+  }
+  45%,
+  55% {
+    transform: rotate(180deg);
+  }
+  90%,
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes travel {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(440%);
+  }
+}
+
+@keyframes fail-open {
+  to {
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .screen {
+    padding: 2rem 3rem;
+  }
+
+  .topline {
+    font-size: 0.65rem;
+  }
+
+  .edition {
+    display: inline;
+  }
+
+  .caption {
+    margin-top: 2.25rem;
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-height: 540px) {
+  .center {
+    margin-block: 0.75rem;
+  }
+
+  .symbol {
+    width: 1.5rem;
+    height: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .wordmark {
+    font-size: clamp(3rem, 16vh, 5rem);
+  }
+
+  .caption {
+    margin-top: 0.8rem;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .skip:hover {
+    background: rgb(19 19 19 / 0.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .symbol,
+  .track span {
+    animation: none;
+  }
+
+  .skip {
+    transition: none;
+  }
+}
