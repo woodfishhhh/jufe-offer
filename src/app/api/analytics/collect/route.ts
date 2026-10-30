@@ -1,16 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { type NextRequest, NextResponse } from "next/server";
-import { recordAnalyticsEvent } from "@/lib/analytics";
+import { recordAnalyticsEvents } from "@/lib/analytics";
 import { isAutomatedVisitor } from "@/lib/visitor-count";
 import { consumeRateLimit } from "@/lib/rate-limit";
-import { analyticsPayloadSchema } from "@/schemas/analytics";
+import { analyticsBatchSchema, analyticsPayloadSchema } from "@/schemas/analytics";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const ANALYTICS_COOKIE = "jufe_offer_analytics_visitor";
 const ANALYTICS_COOKIE_MAX_AGE = 60 * 60 * 24 * 400;
-const MAX_BODY_BYTES = 16 * 1024;
+const MAX_BODY_BYTES = 64 * 1024;
 const responseHeaders = {
   "Cache-Control": "no-store, max-age=0",
 };
@@ -107,20 +107,30 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const parsed = analyticsPayloadSchema.safeParse(payload);
-  if (!parsed.success) {
+  const parsedBatch = analyticsBatchSchema.safeParse(payload);
+  const parsedLegacy = parsedBatch.success
+    ? null
+    : analyticsPayloadSchema.safeParse(payload);
+  if (!parsedBatch.success && !parsedLegacy?.success) {
     return NextResponse.json(
       { error: "Analytics payload did not pass validation." },
       { headers: responseHeaders, status: 400 },
     );
   }
+  const payloads = parsedBatch.success
+    ? parsedBatch.data.events
+    : parsedLegacy?.success
+      ? [parsedLegacy.data]
+      : [];
 
   const existingId = request.cookies.get(ANALYTICS_COOKIE)?.value;
   const visitorId = isValidVisitorId(existingId) ? existingId! : randomUUID();
-  const limit = consumeRateLimit(`analytics:${visitorId}`, {
-    windowMs: 60 * 1000,
-    maxAttempts: 120,
-  });
+  // Charge every event in a batch, so batching cannot multiply the write budget.
+  const limit = consumeRateLimit(
+    `analytics:${visitorId}`,
+    { windowMs: 60 * 1000, maxAttempts: 120 },
+    payloads.length,
+  );
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Analytics event rate limit exceeded." },
@@ -129,14 +139,14 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const accepted = await recordAnalyticsEvent({
-      payload: parsed.data,
+    const accepted = await recordAnalyticsEvents({
+      payloads,
       visitorId,
       userAgent,
       ownHost: readHostname(requestHost),
     });
     const response = NextResponse.json(
-      { data: { accepted } },
+      { data: { accepted: accepted > 0, count: accepted } },
       { headers: responseHeaders, status: 202 },
     );
     if (!isValidVisitorId(existingId)) {

@@ -7,3 +7,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+## Finishing a Task
+
+- Before you finish, delete what the task left behind: debug scripts, logs, screenshots, `.playwright-cli/`, `.cache/` audit captures, throwaway `prisma/*.db` files other than `dev.db`, and temporary worktrees or source copies.
+- Record what you confirmed, the pitfalls you hit, and the user's stated preferences in the matching entry of this file or `docs/`. Rewrite existing entries and drop stale ones rather than appending a log.

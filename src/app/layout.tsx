@@ -5,6 +5,7 @@ import { AuthProvider } from "@/components/auth-provider";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { AppToaster } from "@/components/toaster";
+import { WebVitals } from "@/components/web-vitals";
 import { getSiteUrl, site } from "@/data/site";
 import "./globals.css";
 
@@ -55,11 +56,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="zh-CN"
+      data-revision={process.env.APP_REVISION ?? "unknown"}
       data-scroll-behavior="smooth"
       className={`${syne.variable} ${manrope.variable} h-full scroll-smooth antialiased`}
     >
       <body className="bg-background text-foreground selection:bg-foreground selection:text-background flex min-h-full flex-col font-sans">
         <AuthProvider>
+          <WebVitals />
           <AnalyticsTracker />
           <SiteHeader />
           <div className="relative flex min-h-0 flex-1 flex-col">

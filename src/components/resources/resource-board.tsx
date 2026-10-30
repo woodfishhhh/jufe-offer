@@ -34,6 +34,7 @@ import {
   invalidateResourceListCache,
   requestResourceList,
 } from "@/lib/client-resources";
+import { reportPerformanceReady } from "@/lib/client-rum";
 import type { ResourceDto } from "@/lib/resources";
 import type { ResourceInput } from "@/schemas/resource";
 import { cn, readApiError } from "@/lib/utils";
@@ -327,6 +328,13 @@ export function ResourceBoard() {
   const [pagination, setPagination] = useState({ key: "", count: PAGE_SIZE });
   const [readyMasonryLayoutKey, setReadyMasonryLayoutKey] = useState("");
   const lazyLoadRef = useRef<HTMLDivElement>(null);
+  const dataReadyReportedRef = useRef(false);
+
+  const reportDataReady = useCallback((source: "cache" | "network", count: number) => {
+    if (dataReadyReportedRef.current) return;
+    dataReadyReportedRef.current = true;
+    reportPerformanceReady("resources:data-ready", { count, source });
+  }, []);
 
   const q = searchParams.get("q") ?? "";
   const category = searchParams.get("category") ?? "";
@@ -367,6 +375,7 @@ export function ResourceBoard() {
       setLoadError("");
       try {
         const data = await requestResourceList(queryString);
+        reportDataReady("network", data.length);
         startTransition(() => {
           setResources(data);
           setLoading(false);
@@ -379,7 +388,7 @@ export function ResourceBoard() {
         setLoading(false);
       }
     },
-    [queryString],
+    [queryString, reportDataReady],
   );
 
   useEffect(() => {
@@ -387,6 +396,7 @@ export function ResourceBoard() {
     async function load() {
       const cached = getCachedResourceList(queryString);
       if (cached) {
+        reportDataReady("cache", cached.length);
         startTransition(() => {
           setResources(cached);
           setLoading(false);
@@ -398,6 +408,7 @@ export function ResourceBoard() {
       try {
         const data = await requestResourceList(queryString);
         if (cancelled) return;
+        reportDataReady("network", data.length);
         startTransition(() => {
           setResources(data);
           setLoading(false);
@@ -416,7 +427,7 @@ export function ResourceBoard() {
     return () => {
       cancelled = true;
     };
-  }, [queryString]);
+  }, [queryString, reportDataReady]);
 
   useEffect(() => {
     let cancelled = false;

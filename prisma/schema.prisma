@@ -121,6 +121,7 @@ model SiteMetric {
 
 model AnalyticsEvent {
   id              String   @id @default(cuid())
+  eventId         String?
   eventType       String
   eventName       String?
   path            String
@@ -136,11 +137,17 @@ model AnalyticsEvent {
   metricName      String?
   metricValue     Float?
   metricRating    String?
+  viewport        String?
+  effectsMode     String?
+  revision        String?
+  navigationType  String?
   dataJson        String   @default("{}")
   createdAt       DateTime @default(now())
 
+  @@unique([visitorId, eventId])
   @@index([createdAt, eventType])
   @@index([sessionId, createdAt])
   @@index([path, eventType])
   @@index([visitorId, createdAt])
+  @@index([metricName, path, viewport, effectsMode, revision])
 }

@@ -20,6 +20,9 @@ export type AnalyticsEventRecord = {
   metricName: string | null;
   metricValue: number | null;
   metricRating: string | null;
+  viewport?: string | null;
+  effectsMode?: string | null;
+  revision?: string | null;
 };
 
 export type AnalyticsRankRow = {
@@ -35,11 +38,21 @@ export type AnalyticsTimeRow = {
 
 export type AnalyticsVitalRow = {
   name: string;
-  average: number;
+  p75: number;
   samples: number;
   good: number;
   needsImprovement: number;
   poor: number;
+};
+
+export type AnalyticsPerformanceSegmentRow = {
+  metric: string;
+  path: string;
+  viewport: string;
+  effectsMode: string;
+  revision: string;
+  p75: number;
+  samples: number;
 };
 
 export type AnalyticsSummary = {
@@ -66,7 +79,20 @@ export type AnalyticsSummary = {
   timezones: AnalyticsRankRow[];
   customEvents: AnalyticsRankRow[];
   webVitals: AnalyticsVitalRow[];
+  performanceSegments: AnalyticsPerformanceSegmentRow[];
 };
+
+const WEB_VITAL_NAMES = new Set(["CLS", "FCP", "LCP", "TTFB", "INP"]);
+
+export function percentile(values: number[], percentileValue: number) {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  const rank = Math.max(
+    0,
+    Math.min(sorted.length - 1, Math.ceil(sorted.length * percentileValue) - 1),
+  );
+  return Math.round((sorted[rank] ?? 0) * 100) / 100;
+}
 
 export function normalizeAnalyticsDays(value: unknown) {
   const parsed = Number(value);
@@ -232,6 +258,7 @@ export function summarizeAnalytics(
   const vitalGroups = new Map<string, AnalyticsEventRecord[]>();
   for (const event of performanceEvents) {
     if (!event.metricName || event.metricValue === null) continue;
+    if (!WEB_VITAL_NAMES.has(event.metricName)) continue;
     const group = vitalGroups.get(event.metricName) ?? [];
     group.push(event);
     vitalGroups.set(event.metricName, group);
@@ -239,17 +266,50 @@ export function summarizeAnalytics(
 
   const webVitals = Array.from(vitalGroups, ([name, rows]) => ({
     name,
-    average:
-      Math.round(
-        (rows.reduce((total, row) => total + (row.metricValue ?? 0), 0) / rows.length) *
-          100,
-      ) / 100,
+    p75: percentile(
+      rows.flatMap((row) => (row.metricValue === null ? [] : [row.metricValue])),
+      0.75,
+    ),
     samples: rows.length,
     good: rows.filter((row) => row.metricRating === "good").length,
     needsImprovement: rows.filter((row) => row.metricRating === "needs-improvement")
       .length,
     poor: rows.filter((row) => row.metricRating === "poor").length,
   })).sort((left, right) => left.name.localeCompare(right.name));
+
+  const segmentGroups = new Map<
+    string,
+    { context: Omit<AnalyticsPerformanceSegmentRow, "p75" | "samples">; values: number[] }
+  >();
+  for (const event of performanceEvents) {
+    if (!event.metricName || event.metricValue === null) continue;
+    const context = {
+      metric: event.metricName,
+      path: event.path,
+      viewport: event.viewport || "unknown",
+      effectsMode: event.effectsMode || "unknown",
+      revision: event.revision || "unknown",
+    };
+    const key = JSON.stringify(context);
+    const group = segmentGroups.get(key) ?? { context, values: [] };
+    group.values.push(event.metricValue);
+    segmentGroups.set(key, group);
+  }
+  const performanceSegments = Array.from(
+    segmentGroups.values(),
+    ({ context, values }) => ({
+      ...context,
+      p75: percentile(values, 0.75),
+      samples: values.length,
+    }),
+  )
+    .sort(
+      (left, right) =>
+        right.samples - left.samples ||
+        left.metric.localeCompare(right.metric) ||
+        left.path.localeCompare(right.path),
+    )
+    .slice(0, 100);
 
   return {
     rangeDays,
@@ -289,5 +349,6 @@ export function summarizeAnalytics(
     timezones: rank(pageviews, (event) => event.timezone),
     customEvents: rank(customEvents, (event) => event.eventName),
     webVitals,
+    performanceSegments,
   };
 }

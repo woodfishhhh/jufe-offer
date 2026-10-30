@@ -7,6 +7,7 @@ import { ResilientImage } from "@/components/resilient-image";
 import { site } from "@/data/site";
 import { useEffectsMode } from "@/hooks/use-effects-mode";
 import { scheduleIdle, supportsWebGL2 } from "@/lib/client-performance";
+import { reportPerformanceReady } from "@/lib/client-rum";
 import { cn } from "@/lib/utils";
 
 export function EmblemCanvas({ className }: { className?: string }) {
@@ -70,7 +71,10 @@ export function EmblemCanvas({ className }: { className?: string }) {
           colored
           background="#0a0a0a"
           highlight="#ffffff"
-          onLoad={() => setMode("active")}
+          onLoad={() => {
+            setMode("active");
+            reportPerformanceReady("home:model-ready");
+          }}
           onError={() => setMode("fallback")}
         />
       ) : null}

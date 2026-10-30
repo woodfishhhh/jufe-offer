@@ -7,10 +7,12 @@ import {
   cleanAnalyticsPath,
   isPublicAnalyticsPath,
   parseAnalyticsUserAgent,
+  percentile,
   summarizeAnalytics,
   type AnalyticsEventRecord,
 } from "../src/lib/analytics-core";
-import { analyticsPayloadSchema } from "../src/schemas/analytics";
+import { consumeRateLimit, resetRateLimit } from "../src/lib/rate-limit";
+import { analyticsBatchSchema, analyticsPayloadSchema } from "../src/schemas/analytics";
 
 function record(
   overrides: Partial<AnalyticsEventRecord> & Pick<AnalyticsEventRecord, "createdAt">,
@@ -130,12 +132,22 @@ test("analytics summary uses Beijing days and computes private dashboard metrics
   assert.deepEqual(summary.customEvents[0], { label: "open-analytics", value: 1 });
   assert.deepEqual(summary.webVitals[0], {
     name: "LCP",
-    average: 2500,
+    p75: 3000,
     samples: 2,
     good: 1,
     needsImprovement: 1,
     poor: 0,
   });
+  assert.deepEqual(summary.performanceSegments[0], {
+    metric: "LCP",
+    path: "/",
+    viewport: "unknown",
+    effectsMode: "unknown",
+    revision: "unknown",
+    p75: 3000,
+    samples: 2,
+  });
+  assert.equal(percentile([100, 200, 300, 400], 0.75), 300);
 });
 
 test("analytics payload schema rejects unsupported performance data", () => {
@@ -149,7 +161,31 @@ test("analytics payload schema rejects unsupported performance data", () => {
   assert.equal(
     analyticsPayloadSchema.safeParse({
       ...base,
-      data: { metric: "LCP", value: 2300, rating: "good" },
+      eventId: "event-web-vital-inp",
+      viewport: "390x844",
+      effectsMode: "lite",
+      revision: "c52ccc6fc5e780cf25490723b75da4f2629fbbf8",
+      data: { metric: "INP", value: 180, rating: "good" },
+    }).success,
+    true,
+  );
+  assert.equal(
+    analyticsPayloadSchema.safeParse({
+      ...base,
+      name: "custom-metric",
+      data: { metric: "resources:data-ready", value: 480, count: 20 },
+    }).success,
+    true,
+  );
+  assert.equal(
+    analyticsBatchSchema.safeParse({
+      batchId: "batch-session-one",
+      events: [
+        {
+          ...base,
+          data: { metric: "LCP", value: 2300, rating: "good" },
+        },
+      ],
     }).success,
     true,
   );
@@ -160,6 +196,75 @@ test("analytics payload schema rejects unsupported performance data", () => {
     }).success,
     false,
   );
+  assert.equal(
+    analyticsPayloadSchema.safeParse({ ...base, data: { metric: "lcp", value: 2300 } }).success,
+    true,
+    "Web Vitals names stay case-insensitive for older clients",
+  );
+  assert.equal(
+    analyticsPayloadSchema.safeParse({
+      ...base,
+      name: "custom-metric",
+      data: { metric: "Resources:Data-Ready", value: 480 },
+    }).success,
+    false,
+    "custom metric names are exact",
+  );
+  assert.equal(
+    analyticsPayloadSchema.safeParse({
+      ...base,
+      viewport: "wide",
+      data: { metric: "LCP", value: 2300 },
+    }).success,
+    false,
+  );
+  const event = { ...base, data: { metric: "LCP", value: 2300 } };
+  assert.equal(
+    analyticsBatchSchema.safeParse({ batchId: "batch-empty", events: [] }).success,
+    false,
+  );
+  assert.equal(
+    analyticsBatchSchema.safeParse({
+      batchId: "batch-too-large",
+      events: Array.from({ length: 33 }, () => event),
+    }).success,
+    false,
+  );
+  assert.equal(
+    analyticsBatchSchema.safeParse({
+      batchId: "batch-mixed",
+      events: [event, { ...base, data: { metric: "SECRET", value: 1 } }],
+    }).success,
+    false,
+  );
+});
+
+test("analytics rate limit charges each event in a batch", () => {
+  const key = `analytics-test:${Date.now()}:${Math.random()}`;
+  const policy = { windowMs: 60_000, maxAttempts: 40 };
+  try {
+    assert.equal(consumeRateLimit(key, policy, 32).ok, true);
+    assert.equal(consumeRateLimit(key, policy, 9).ok, false);
+    assert.equal(consumeRateLimit(key, policy, 8).ok, true);
+    assert.equal(consumeRateLimit(key, policy).ok, false);
+    assert.equal(consumeRateLimit(`${key}:oversized`, policy, 41).ok, false);
+  } finally {
+    resetRateLimit(key);
+    resetRateLimit(`${key}:oversized`);
+  }
+});
+
+test("analytics client uses Next Web Vitals and a beacon-first batch transport", () => {
+  const webVitals = readFileSync("src/components/web-vitals.tsx", "utf8");
+  const transport = readFileSync("src/lib/client-analytics.ts", "utf8");
+  const instrumentation = readFileSync("src/instrumentation-client.ts", "utf8");
+
+  assert.match(webVitals, /useReportWebVitals/);
+  assert.match(webVitals, /"INP"/);
+  assert.match(transport, /navigator\.sendBeacon/);
+  assert.match(transport, /events,/);
+  assert.doesNotMatch(instrumentation, /largest-contentful-paint|layout-shift/);
+  assert.match(instrumentation, /long-animation-frame/);
 });
 
 test("analytics page and summary API both enforce the admin session", () => {

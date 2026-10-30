@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { MasonryGrid } from "@egjs/react-grid";
 import { ResourceCard } from "@/components/resources/resource-card";
 import type { ResourceDto } from "@/lib/resources";
+import { reportPerformanceReady } from "@/lib/client-rum";
 
 export function ResourceMasonryResults({
   resources,
@@ -21,6 +22,7 @@ export function ResourceMasonryResults({
   onDelete: (resource: ResourceDto) => void;
 }) {
   const [ready, setReady] = useState(false);
+  const readyReportedRef = useRef(false);
 
   return (
     <MasonryGrid
@@ -33,6 +35,13 @@ export function ResourceMasonryResults({
       observeChildren
       onRenderComplete={() => {
         setReady(true);
+        if (!readyReportedRef.current) {
+          readyReportedRef.current = true;
+          reportPerformanceReady("resources:masonry-ready", {
+            columns,
+            count: resources.length,
+          });
+        }
         onReady();
       }}
     >

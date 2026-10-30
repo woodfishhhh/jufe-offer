@@ -10,6 +10,7 @@ import {
 import { FriendLinkApplication } from "@/components/friend-link-application";
 import type { FriendLink } from "@/data/friends";
 import { getAdaptiveCanvasDpr } from "@/lib/client-performance";
+import { reportPerformanceReady } from "@/lib/client-rum";
 import styles from "./friend-network.module.css";
 
 const CONFIG = {
@@ -298,6 +299,7 @@ export function FriendNetwork({ friends }: { friends: readonly FriendLink[] }) {
     let starField: StarField | null = null;
     let frame = 0;
     let lastFrame = performance.now();
+    let firstFrameReported = false;
     let cardIndexOnScreen = -1;
     let cardWidth = 232;
     let cardHeight = 120;
@@ -682,6 +684,12 @@ export function FriendNetwork({ friends }: { friends: readonly FriendLink[] }) {
       });
 
       draw();
+      if (!firstFrameReported) {
+        firstFrameReported = true;
+        reportPerformanceReady("friends:first-frame", {
+          planets: planets.length,
+        });
+      }
       showCard(now);
       scheduleFrame();
     };

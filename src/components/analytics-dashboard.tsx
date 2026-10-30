@@ -11,6 +11,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import type {
+  AnalyticsPerformanceSegmentRow,
   AnalyticsRankRow,
   AnalyticsSummary,
   AnalyticsTimeRow,
@@ -236,8 +237,14 @@ function RankPanel({
   );
 }
 
-function VitalPanel({ rows }: { rows: AnalyticsVitalRow[] }) {
-  const metricOrder = ["LCP", "CLS", "FCP", "TTFB"];
+function VitalPanel({
+  rows,
+  segments,
+}: {
+  rows: AnalyticsVitalRow[];
+  segments: AnalyticsPerformanceSegmentRow[];
+}) {
+  const metricOrder = ["LCP", "INP", "CLS", "FCP", "TTFB"];
   const sorted = [...rows].sort(
     (left, right) => metricOrder.indexOf(left.name) - metricOrder.indexOf(right.name),
   );
@@ -249,7 +256,7 @@ function VitalPanel({ rows }: { rows: AnalyticsVitalRow[] }) {
           <h2 className="font-[family-name:var(--font-syne)] text-lg font-semibold tracking-[-0.02em]">
             Web Vitals
           </h2>
-          <p className="mt-1 text-xs text-white/35">真实访客端性能样本</p>
+          <p className="mt-1 text-xs text-white/35">真实访客端性能样本 · p75</p>
         </div>
         <div className="flex items-center gap-4 text-[11px] text-white/40">
           <span>
@@ -280,8 +287,8 @@ function VitalPanel({ rows }: { rows: AnalyticsVitalRow[] }) {
                     <p className="font-mono text-xs text-white/40">{row.name}</p>
                     <p className="mt-2 text-xl font-semibold">
                       {row.name === "CLS"
-                        ? row.average.toFixed(3)
-                        : `${Math.round(row.average)} ms`}
+                        ? row.p75.toFixed(3)
+                        : `${Math.round(row.p75)} ms`}
                     </p>
                   </div>
                   <span className="rounded-full bg-white/[0.06] px-2 py-1 font-mono text-[10px] text-white/35">
@@ -309,6 +316,42 @@ function VitalPanel({ rows }: { rows: AnalyticsVitalRow[] }) {
       ) : (
         <p className="mt-8 min-h-20 text-sm text-white/30">等待真实访客产生性能样本。</p>
       )}
+      {segments.length ? (
+        <div className="mt-6 overflow-x-auto rounded-2xl border border-white/[0.07] bg-black/20">
+          <table className="w-full min-w-[760px] text-left text-xs">
+            <thead className="border-b border-white/[0.07] text-white/35">
+              <tr>
+                <th className="px-4 py-3 font-medium">指标</th>
+                <th className="px-4 py-3 font-medium">路径</th>
+                <th className="px-4 py-3 font-medium">视口</th>
+                <th className="px-4 py-3 font-medium">效果</th>
+                <th className="px-4 py-3 font-medium">Revision</th>
+                <th className="px-4 py-3 text-right font-medium">p75</th>
+                <th className="px-4 py-3 text-right font-medium">样本</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/[0.05] text-white/60">
+              {segments.slice(0, 12).map((row) => (
+                <tr
+                  key={`${row.metric}:${row.path}:${row.viewport}:${row.effectsMode}:${row.revision}`}
+                >
+                  <td className="px-4 py-3 font-mono text-white/75">{row.metric}</td>
+                  <td className="px-4 py-3">{row.path}</td>
+                  <td className="px-4 py-3 font-mono">{row.viewport}</td>
+                  <td className="px-4 py-3">{row.effectsMode}</td>
+                  <td className="px-4 py-3 font-mono">{row.revision.slice(0, 8)}</td>
+                  <td className="px-4 py-3 text-right font-mono">
+                    {row.metric === "CLS"
+                      ? row.p75.toFixed(3)
+                      : `${Math.round(row.p75)} ms`}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono">{row.samples}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -506,7 +549,7 @@ export function AnalyticsDashboard({
             rows={summary.customEvents}
             empty="等待带标记的站内交互。"
           />
-          <VitalPanel rows={summary.webVitals} />
+          <VitalPanel rows={summary.webVitals} segments={summary.performanceSegments} />
         </div>
 
         <footer className="mt-8 flex flex-col gap-2 border-t border-white/[0.08] pt-6 text-xs leading-6 text-white/30 sm:flex-row sm:items-center sm:justify-between">

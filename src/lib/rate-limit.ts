@@ -25,24 +25,31 @@ function cleanExpiredBuckets(now: number) {
   }
 }
 
-export function consumeRateLimit(key: string, policy: RateLimitPolicy = DEFAULT_POLICY) {
+export function consumeRateLimit(
+  key: string,
+  policy: RateLimitPolicy = DEFAULT_POLICY,
+  cost = 1,
+) {
   const now = Date.now();
   cleanExpiredBuckets(now);
   const current = buckets.get(key);
 
   if (!current || now >= current.resetAt) {
-    buckets.set(key, { count: 1, resetAt: now + policy.windowMs });
-    return { ok: true as const, remaining: policy.maxAttempts - 1 };
+    if (cost > policy.maxAttempts) {
+      return { ok: false as const, retryAfterMs: policy.windowMs };
+    }
+    buckets.set(key, { count: cost, resetAt: now + policy.windowMs });
+    return { ok: true as const, remaining: policy.maxAttempts - cost };
   }
 
-  if (current.count >= policy.maxAttempts) {
+  if (current.count + cost > policy.maxAttempts) {
     return {
       ok: false as const,
       retryAfterMs: current.resetAt - now,
     };
   }
 
-  current.count += 1;
+  current.count += cost;
   return { ok: true as const, remaining: policy.maxAttempts - current.count };
 }
 

@@ -3,6 +3,7 @@
 import { Children, useEffect, useRef, useState, type ReactNode } from "react";
 import { useEffectsMode } from "@/hooks/use-effects-mode";
 import { scheduleIdle, shouldReduceEffects } from "@/lib/client-performance";
+import { reportPerformanceReady } from "@/lib/client-rum";
 import { cn } from "@/lib/utils";
 
 const WHEEL_THRESHOLD = 42;
@@ -362,11 +363,17 @@ export function HomeDeck({
         `${initialPagePath}${window.location.search}`,
       );
     }
+    const readyFrame = window.requestAnimationFrame(() => {
+      reportPerformanceReady("home:enhancement-ready", {
+        slides: slides.length,
+      });
+    });
 
     return () => {
       destroyed = true;
       transitionToken += 1;
       resizeObserver.disconnect();
+      window.cancelAnimationFrame(readyFrame);
       cancelMotionWarmup();
       deckViewport.removeEventListener("wheel", handleWheel);
       deckViewport.removeEventListener("pointermove", warmMotionEngine);

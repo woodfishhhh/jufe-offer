@@ -12,9 +12,10 @@ import {
 } from "@/lib/analytics-core";
 import { prisma } from "@/lib/prisma";
 import { VISITOR_COUNT_BASELINE, VISITOR_COUNT_KEY } from "@/lib/visitor-count";
-import type { AnalyticsPayload } from "@/schemas/analytics";
+import { WEB_VITAL_METRICS, type AnalyticsPayload } from "@/schemas/analytics";
 
 let lastCleanupDay = "";
+const webVitalNames = new Set<string>(WEB_VITAL_METRICS);
 
 function cleanOptionalText(value: string | undefined, limit: number) {
   const cleaned = value?.trim().slice(0, limit);
@@ -26,8 +27,10 @@ function normalizeMetric(payload: AnalyticsPayload) {
     return { metricName: null, metricValue: null, metricRating: null };
   }
 
+  const rawName = String(payload.data?.metric ?? "");
+  const upperName = rawName.toUpperCase();
   return {
-    metricName: String(payload.data?.metric ?? "").toUpperCase(),
+    metricName: webVitalNames.has(upperName) ? upperName : rawName,
     metricValue: Number(payload.data?.value),
     metricRating: cleanOptionalText(String(payload.data?.rating ?? ""), 24),
   };
@@ -47,28 +50,30 @@ async function cleanupAnalyticsIfDue(now: Date) {
   lastCleanupDay = currentDay;
 }
 
-export async function recordAnalyticsEvent({
-  payload,
+export async function recordAnalyticsEvents({
+  payloads,
   visitorId,
   userAgent,
   ownHost,
   now = new Date(),
 }: {
-  payload: AnalyticsPayload;
+  payloads: AnalyticsPayload[];
   visitorId: string;
   userAgent: string | null;
   ownHost: string;
   now?: Date;
 }) {
-  const path = cleanAnalyticsPath(payload.path);
-  if (!isPublicAnalyticsPath(path)) return false;
+  const acceptedPayloads = payloads
+    .map((payload) => ({ payload, path: cleanAnalyticsPath(payload.path) }))
+    .filter(({ path }) => isPublicAnalyticsPath(path));
+  if (acceptedPayloads.length === 0) return 0;
 
   const agent = parseAnalyticsUserAgent(userAgent);
-  const metric = normalizeMetric(payload);
-  const data = payload.data ?? {};
-
-  await prisma.analyticsEvent.create({
-    data: {
+  const operations = acceptedPayloads.map(({ payload, path }) => {
+    const metric = normalizeMetric(payload);
+    const data = payload.data ?? {};
+    const create = {
+      eventId: payload.eventId ?? null,
       eventType: payload.type,
       eventName: cleanOptionalText(payload.name, 80),
       path,
@@ -81,14 +86,32 @@ export async function recordAnalyticsEvent({
       device: agent.device,
       language: cleanOptionalText(payload.language, 32),
       timezone: cleanOptionalText(payload.timezone, 64),
+      viewport: cleanOptionalText(payload.viewport, 32),
+      effectsMode: cleanOptionalText(payload.effectsMode, 24),
+      revision: cleanOptionalText(payload.revision, 64),
+      navigationType: cleanOptionalText(payload.navigationType, 32),
       ...metric,
       dataJson: JSON.stringify(data),
       createdAt: now,
-    },
+    };
+
+    if (!payload.eventId) return prisma.analyticsEvent.create({ data: create });
+    const update = { ...create, createdAt: undefined };
+    return prisma.analyticsEvent.upsert({
+      where: {
+        visitorId_eventId: {
+          visitorId,
+          eventId: payload.eventId,
+        },
+      },
+      create,
+      update,
+    });
   });
 
+  await prisma.$transaction(operations);
   await cleanupAnalyticsIfDue(now);
-  return true;
+  return acceptedPayloads.length;
 }
 
 export async function getAnalyticsSummary(days: number, now = new Date()) {
@@ -114,6 +137,9 @@ export async function getAnalyticsSummary(days: number, now = new Date()) {
         metricName: true,
         metricValue: true,
         metricRating: true,
+        viewport: true,
+        effectsMode: true,
+        revision: true,
       },
     }),
     prisma.siteMetric.findUnique({
